@@ -109,8 +109,11 @@ Download the installer from [GitHub Releases](https://github.com/matevip/matecla
 | Platform | File | Notes |
 |----------|------|-------|
 | **macOS (Apple Silicon)** | `MateClaw_<version>_arm64.dmg` | Recommended for M1/M2/M3/M4 Mac |
-| **macOS (Apple Silicon)** | `MateClaw_<version>_arm64.zip` | Alternative zip format |
-| **Windows (x64)** | `MateClaw_<version>_Setup.exe` | For most Windows PCs |
+| **macOS (Apple Silicon)** | `MateClaw_<version>_arm64.zip` | zip format (Apple Silicon) |
+| **macOS (Intel)** | `MateClaw_<version>_x64.dmg` | For Intel-based Mac |
+| **macOS (Intel)** | `MateClaw_<version>_x64.zip` | zip format (Intel) |
+| **Windows (x64)** | `MateClaw_<version>_Setup.exe` | For most Windows PCs (64-bit) |
+| **Windows (x64)** | `MateClaw_<version>_x64_Setup.exe` | Explicit x64 build |
 | **Windows (ARM64)** | `MateClaw_<version>_arm64_Setup.exe` | For ARM-based Windows (e.g. Surface Pro X) |
 
 Double-click to run. The app bundles JRE 21 + the Spring Boot backend, no Java installation needed. Supports auto-update via GitHub Releases.
