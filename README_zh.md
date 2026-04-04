@@ -76,7 +76,7 @@ export DASHSCOPE_API_KEY=your-key-here
 mvn spring-boot:run
 # 后端运行在 http://localhost:18088
 # H2 控制台：http://localhost:18088/h2-console
-# API 文档（Knife4j）：http://localhost:18088/doc.html
+# API 文档（SpringDoc OpenAPI）：http://localhost:18088/swagger-ui.html
 ```
 
 **2. 启动前端**
@@ -176,7 +176,7 @@ mateclaw/
 | 数据库 | H2（开发）/ MySQL 8.0+（生产） |
 | ORM | MyBatis Plus 3.5 |
 | 认证 | Spring Security + JWT |
-| API 文档 | Knife4j (OpenAPI 3) |
+| API 文档 | SpringDoc OpenAPI 3 |
 | 前端框架 | Vue 3 + TypeScript + Vite |
 | 状态管理 | Pinia |
 | UI 组件 | Element Plus |

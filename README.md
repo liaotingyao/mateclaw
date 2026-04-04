@@ -76,7 +76,7 @@ export DASHSCOPE_API_KEY=your-key-here
 mvn spring-boot:run
 # Backend runs at http://localhost:18088
 # H2 Console: http://localhost:18088/h2-console
-# API Docs (Knife4j): http://localhost:18088/doc.html
+# API Docs (SpringDoc OpenAPI): http://localhost:18088/swagger-ui.html
 ```
 
 **2. Start the frontend**
@@ -176,7 +176,7 @@ mateclaw/
 | Database | H2 (dev) / MySQL 8.0+ (prod) |
 | ORM | MyBatis Plus 3.5 |
 | Authentication | Spring Security + JWT |
-| API Docs | Knife4j (OpenAPI 3) |
+| API Docs | SpringDoc OpenAPI 3 |
 | Frontend | Vue 3 + TypeScript + Vite |
 | State Management | Pinia |
 | UI Components | Element Plus |

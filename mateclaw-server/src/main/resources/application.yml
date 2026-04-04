@@ -61,12 +61,6 @@ mybatis-plus:
       logic-delete-value: 1
       logic-not-delete-value: 0
 
-# Knife4j API 文档
-knife4j:
-  enable: true
-  setting:
-    language: zh_cn
-
 # SpringDoc OpenAPI
 springdoc:
   api-docs:
