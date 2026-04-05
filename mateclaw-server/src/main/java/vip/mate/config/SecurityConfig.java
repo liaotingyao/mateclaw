@@ -48,34 +48,20 @@ public class SecurityConfig {
             )
             .sessionManagement(s -> s.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
             .authorizeHttpRequests(auth -> auth
-                // 公开接口
+                // 公开 API 接口
                 .requestMatchers(
                     "/api/v1/auth/login",
                     "/api/v1/settings/language",
-                    "/swagger-ui.html",
-                    "/swagger-ui/**",
-                    "/v3/api-docs/**",
-                    "/webjars/**",
-                    "/actuator/**",
-                    "/h2-console/**",
-                    // 静态资源（前端 SPA）
-                    "/",
-                    "/index.html",
-                    "/assets/**",
-                    "/icons/**",
-                    "/logo/**",
-                    "/favicon.ico"
+                    "/api/v1/agents/*/chat/stream",
+                    "/api/v1/chat/stream",
+                    "/api/v1/chat/*/stop",
+                    "/api/v1/setup/**",
+                    "/api/v1/channels/webhook/**"
                 ).permitAll()
-                // SSE 流式接口允许匿名（开发模式，生产环境可改为 authenticated）
-                .requestMatchers("/api/v1/agents/*/chat/stream").permitAll()
-                .requestMatchers("/api/v1/chat/stream").permitAll()
-                .requestMatchers("/api/v1/chat/*/stop").permitAll()
-                // 初始化 Setup API（首次安装语言选择，无需认证）
-                .requestMatchers("/api/v1/setup/**").permitAll()
-                // 渠道 Webhook 回调（各平台消息推送，由平台签名机制保障安全）
-                .requestMatchers("/api/v1/channels/webhook/**").permitAll()
-                // 其余接口需要认证
-                .anyRequest().authenticated()
+                // 所有其他 API 接口需要认证
+                .requestMatchers("/api/**").authenticated()
+                // 非 API 请求（前端路由、静态资源、Swagger、H2 Console 等）全部放行
+                .anyRequest().permitAll()
             )
             .exceptionHandling(ex -> ex
                 .authenticationEntryPoint((request, response, authException) -> {
