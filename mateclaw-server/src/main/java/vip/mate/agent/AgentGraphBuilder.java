@@ -339,6 +339,7 @@ public class AgentGraphBuilder {
                     .addStrategy(MateClawStateKeys.TOOL_CALLS, KeyStrategy.REPLACE)
                     .addStrategy(MateClawStateKeys.TOOL_RESULTS, KeyStrategy.REPLACE)
                     .addStrategy(MateClawStateKeys.TOOL_CALL_COUNT, KeyStrategy.REPLACE)
+                    .addStrategy(MateClawStateKeys.LLM_CALL_COUNT, KeyStrategy.REPLACE)
                     // 控制流
                     .addStrategy(MateClawStateKeys.FINAL_ANSWER, KeyStrategy.REPLACE)
                     .addStrategy(MateClawStateKeys.NEEDS_TOOL_CALL, KeyStrategy.REPLACE)

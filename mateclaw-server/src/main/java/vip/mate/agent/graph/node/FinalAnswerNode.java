@@ -79,18 +79,27 @@ public class FinalAnswerNode implements NodeAction {
                     finalAnswer.length(), finishReason);
 
         } else {
-            // 异常兜底：使用 summarizedContext
-            String summary = accessor.summarizedContext();
-            if (!summary.isEmpty()) {
-                finalAnswer = summary;
-                finalThinking = currentThinking;
-                finishReason = FinishReason.SUMMARIZED;
-                log.warn("[FinalAnswerNode] No finalAnswer or draft found, falling back to summarizedContext");
-            } else {
-                finalAnswer = "未能生成回答，请重试。";
+            // 无 draft 也无 finalAnswer
+            // 先检查是否用户主动停止（无内容的 STOPPED 是合法终止，不是错误）
+            if (parseFinishReason(existingReason) == FinishReason.STOPPED) {
+                finalAnswer = "";
                 finalThinking = "";
-                finishReason = FinishReason.ERROR_FALLBACK;
-                log.error("[FinalAnswerNode] No answer source available, returning fallback");
+                finishReason = FinishReason.STOPPED;
+                log.info("[FinalAnswerNode] User stopped before any content was generated, preserving STOPPED");
+            } else {
+                // 异常兜底：使用 summarizedContext
+                String summary = accessor.summarizedContext();
+                if (!summary.isEmpty()) {
+                    finalAnswer = summary;
+                    finalThinking = currentThinking;
+                    finishReason = FinishReason.SUMMARIZED;
+                    log.warn("[FinalAnswerNode] No finalAnswer or draft found, falling back to summarizedContext");
+                } else {
+                    finalAnswer = "未能生成回答，请重试。";
+                    finalThinking = "";
+                    finishReason = FinishReason.ERROR_FALLBACK;
+                    log.error("[FinalAnswerNode] No answer source available, returning fallback");
+                }
             }
         }
 

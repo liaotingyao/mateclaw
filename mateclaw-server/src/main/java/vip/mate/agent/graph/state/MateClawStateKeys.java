@@ -127,6 +127,10 @@ public final class MateClawStateKeys {
     /** 取消标志：外部请求停止时设为 true，各节点在入口处检查 */
     public static final String STOP_REQUESTED = "stop_requested";
 
+    // ===== LLM 调用计数（REPLACE 策略）=====
+    /** 累计 LLM 调用次数（每次 ReasoningNode 调用 LLM 时递增，独立于迭代计数） */
+    public static final String LLM_CALL_COUNT = "llm_call_count";
+
     // ===== Token Usage 累计（REPLACE 策略，节点内累加后写回）=====
     public static final String PROMPT_TOKENS = "prompt_tokens";
     public static final String COMPLETION_TOKENS = "completion_tokens";

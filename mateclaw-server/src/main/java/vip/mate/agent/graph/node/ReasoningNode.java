@@ -50,23 +50,36 @@ public class ReasoningNode implements NodeAction {
 
     private static final ObjectMapper OBJECT_MAPPER = new ObjectMapper();
 
+    /** 单次 LLM 调用的默认最大输出 token 数，防止退化输出无限生成 */
+    private static final int DEFAULT_MAX_OUTPUT_TOKENS = 4096;
+
     private final ChatModel chatModel;
     private final List<ToolCallback> toolCallbacks;
     private final String reasoningEffort;
     private final NodeStreamingChatHelper streamingHelper;
     private final ConversationWindowManager conversationWindowManager;
     private final ChatStreamTracker streamTracker;
+    private final int maxOutputTokens;
 
     public ReasoningNode(ChatModel chatModel, AgentToolSet toolSet, String reasoningEffort,
                          NodeStreamingChatHelper streamingHelper,
                          ConversationWindowManager conversationWindowManager,
                          ChatStreamTracker streamTracker) {
+        this(chatModel, toolSet, reasoningEffort, streamingHelper, conversationWindowManager,
+                streamTracker, DEFAULT_MAX_OUTPUT_TOKENS);
+    }
+
+    public ReasoningNode(ChatModel chatModel, AgentToolSet toolSet, String reasoningEffort,
+                         NodeStreamingChatHelper streamingHelper,
+                         ConversationWindowManager conversationWindowManager,
+                         ChatStreamTracker streamTracker, int maxOutputTokens) {
         this.chatModel = chatModel;
         this.toolCallbacks = toolSet.callbacks();
         this.reasoningEffort = reasoningEffort;
         this.streamingHelper = streamingHelper;
         this.conversationWindowManager = conversationWindowManager;
         this.streamTracker = streamTracker;
+        this.maxOutputTokens = maxOutputTokens > 0 ? maxOutputTokens : DEFAULT_MAX_OUTPUT_TOKENS;
     }
 
     public ReasoningNode(ChatModel chatModel, AgentToolSet toolSet, String reasoningEffort,
@@ -75,25 +88,19 @@ public class ReasoningNode implements NodeAction {
         this(chatModel, toolSet, reasoningEffort, streamingHelper, conversationWindowManager, null);
     }
 
-    /**
-     * @deprecated Use {@link #ReasoningNode(ChatModel, AgentToolSet, String, NodeStreamingChatHelper)} instead
-     */
+    /** @deprecated */
     @Deprecated
     public ReasoningNode(ChatModel chatModel, AgentToolSet toolSet, String reasoningEffort) {
         this(chatModel, toolSet, reasoningEffort, null, null);
     }
 
-    /**
-     * @deprecated Use {@link #ReasoningNode(ChatModel, AgentToolSet, String, NodeStreamingChatHelper)} instead
-     */
+    /** @deprecated */
     @Deprecated
     public ReasoningNode(ChatModel chatModel, AgentToolSet toolSet) {
         this(chatModel, toolSet, null, null, null);
     }
 
-    /**
-     * @deprecated Use {@link #ReasoningNode(ChatModel, AgentToolSet, String, NodeStreamingChatHelper)} instead
-     */
+    /** @deprecated */
     @Deprecated
     public ReasoningNode(ChatModel chatModel, List<ToolCallback> toolCallbacks) {
         this.chatModel = chatModel;
@@ -102,6 +109,7 @@ public class ReasoningNode implements NodeAction {
         this.streamingHelper = null;
         this.conversationWindowManager = null;
         this.streamTracker = null;
+        this.maxOutputTokens = DEFAULT_MAX_OUTPUT_TOKENS;
     }
 
     @Override
@@ -109,14 +117,14 @@ public class ReasoningNode implements NodeAction {
     public Map<String, Object> apply(OverAllState state) throws Exception {
         MateClawStateAccessor accessor = new MateClawStateAccessor(state);
 
-        // ======= 取消检查 =======
+        // ======= 取消检查（LLM 调用前，尚未计数） =======
         String conversationId = accessor.conversationId();
         if (streamTracker != null && streamTracker.isStopRequested(conversationId)) {
-            log.info("[ReasoningNode] Stop requested, aborting LLM call");
+            log.info("[ReasoningNode] Stop requested before LLM call, aborting");
             throw new CancellationException("Stream stopped by user");
         }
 
-        // ======= forced_tool_call 检测：审批通过后的重放 =======
+        // ======= forced_tool_call 检测：审批通过后的重放（不计入 LLM 调用） =======
         String forcedToolCallJson = accessor.forcedToolCall();
         if (!forcedToolCallJson.isEmpty()) {
             try {
@@ -124,7 +132,6 @@ public class ReasoningNode implements NodeAction {
 
                 AssistantMessage.ToolCall toolCall = deserializeToolCall(forcedToolCallJson);
 
-                // 构造合成的 AssistantMessage
                 AssistantMessage syntheticMsg = AssistantMessage.builder()
                         .content("")
                         .toolCalls(List.of(toolCall))
@@ -135,10 +142,10 @@ public class ReasoningNode implements NodeAction {
                         .toolCalls(List.of(toolCall))
                         .messages(List.of((Message) syntheticMsg))
                         .iterationCount(accessor.iterationCount() + 1)
-                        .forcedToolCall("")  // 清空，防止下一轮再触发
+                        .forcedToolCall("")
                         .currentPhase("forced_replay")
-                        .contentStreamed(true)   // 无 content 需要流式推送
-                        .thinkingStreamed(true)  // 无 thinking 需要流式推送
+                        .contentStreamed(true)
+                        .thinkingStreamed(true)
                         .events(List.of(GraphEventPublisher.phase("forced_replay", Map.of(
                                 "toolName", toolCall.name(),
                                 "iteration", accessor.iterationCount() + 1))))
@@ -146,18 +153,26 @@ public class ReasoningNode implements NodeAction {
             } catch (Exception e) {
                 log.error("[ReasoningNode] Failed to deserialize forced_tool_call, falling through to normal LLM: {}",
                         e.getMessage());
-                // 不 return，清空 forcedToolCall 后走正常 LLM 流程
             }
         }
-        // ======= forced_tool_call 检测结束 =======
 
+        // ======= 构建 Prompt =======
         String systemPrompt = accessor.systemPrompt();
         List<Message> messages = accessor.messages();
 
-        // 构建 Prompt，附带工具定义但禁用内部工具执行
+        // 消息列表膨胀防护
+        final int MAX_LOOP_MESSAGES = 40;
+        if (messages.size() > MAX_LOOP_MESSAGES) {
+            log.warn("[ReasoningNode] Messages list too large ({} messages), trimming to {} for conversation {}",
+                    messages.size(), MAX_LOOP_MESSAGES, conversationId);
+            List<Message> trimmed = new ArrayList<>(MAX_LOOP_MESSAGES);
+            trimmed.addAll(messages.subList(0, Math.min(4, messages.size())));
+            trimmed.addAll(messages.subList(messages.size() - (MAX_LOOP_MESSAGES - 4), messages.size()));
+            messages = trimmed;
+        }
+
         List<Message> promptMessages = new ArrayList<>();
         promptMessages.add(new SystemMessage(systemPrompt));
-        // 注入运行时上下文（当前时间），让 LLM 在推理阶段即可感知真实日期
         promptMessages.add(new UserMessage(RuntimeContextInjector.buildContextMessage()));
         promptMessages.addAll(messages);
 
@@ -166,6 +181,7 @@ public class ReasoningNode implements NodeAction {
             OpenAiChatOptions oaiOpts = OpenAiChatOptions.builder()
                     .toolCallbacks(toolCallbacks)
                     .reasoningEffort(reasoningEffort)
+                    .maxTokens(maxOutputTokens)
                     .build();
             oaiOpts.setInternalToolExecutionEnabled(false);
             options = oaiOpts;
@@ -173,50 +189,78 @@ public class ReasoningNode implements NodeAction {
             options = ToolCallingChatOptions.builder()
                     .toolCallbacks(toolCallbacks)
                     .internalToolExecutionEnabled(false)
+                    .maxTokens(maxOutputTokens)
                     .build();
         }
 
         Prompt prompt = new Prompt(promptMessages, options);
 
-        log.debug("[ReasoningNode] Calling LLM with {} messages, {} tool definitions, iteration {}/{}",
+        // ======= LLM 调用区域 =======
+        // nextLlmCallCount 在首次 streamCall 之前计算。
+        // 所有退出路径（正常、stopped、fatal error、CancellationException）都必须写回此值。
+        // PTL compact retry 会再 +1。
+        int nextLlmCallCount = accessor.llmCallCount() + 1;
+        log.debug("[ReasoningNode] Calling LLM with {} messages, {} tool definitions, iteration {}/{}, llmCallCount={}",
                 promptMessages.size(), toolCallbacks.size(),
-                accessor.iterationCount(), accessor.maxIterations());
+                accessor.iterationCount(), accessor.maxIterations(), nextLlmCallCount);
 
-        // 构建 phase 事件
         GraphEventPublisher.GraphEvent phaseEvent = GraphEventPublisher.phase("reasoning",
                 Map.of("iteration", accessor.iterationCount()));
 
-        // 流式 LLM 调用：content/thinking 增量实时推送给前端
-        NodeStreamingChatHelper.StreamResult result = streamingHelper.streamCall(
-                chatModel, prompt, conversationId, "reasoning");
+        NodeStreamingChatHelper.StreamResult result;
+        try {
+            result = streamingHelper.streamCall(chatModel, prompt, conversationId, "reasoning");
 
-        // PTL 处理：压缩后重试（由 Node 层负责，因为 helper 不知道哪些消息可压缩）
-        if (result.isPromptTooLong() && conversationWindowManager != null) {
-            log.warn("[ReasoningNode] Prompt too long, attempting compaction and retry");
-            List<Message> compactedMessages = conversationWindowManager.compactForRetry(messages);
-            if (compactedMessages != null && compactedMessages.size() < messages.size()) {
-                List<Message> retryPromptMessages = new ArrayList<>();
-                retryPromptMessages.add(new SystemMessage(systemPrompt));
-                retryPromptMessages.addAll(compactedMessages);
-                Prompt retryPrompt = new Prompt(retryPromptMessages, options);
-                log.info("[ReasoningNode] Retrying with compacted messages: {} -> {} messages",
-                        messages.size(), compactedMessages.size());
-                result = streamingHelper.streamCall(chatModel, retryPrompt, conversationId, "reasoning_compact_retry");
-            } else {
-                log.warn("[ReasoningNode] Compaction did not reduce messages, cannot retry");
+            // PTL 处理：压缩后重试
+            if (result.isPromptTooLong() && conversationWindowManager != null) {
+                log.warn("[ReasoningNode] Prompt too long, attempting compaction and retry");
+                List<Message> compactedMessages = conversationWindowManager.compactForRetry(messages);
+                if (compactedMessages != null && compactedMessages.size() < messages.size()) {
+                    List<Message> retryPromptMessages = new ArrayList<>();
+                    retryPromptMessages.add(new SystemMessage(systemPrompt));
+                    retryPromptMessages.add(new UserMessage(RuntimeContextInjector.buildContextMessage()));
+                    retryPromptMessages.addAll(compactedMessages);
+                    Prompt retryPrompt = new Prompt(retryPromptMessages, options);
+                    log.info("[ReasoningNode] Retrying with compacted messages: {} -> {} messages",
+                            messages.size(), compactedMessages.size());
+                    // compact retry 是第 2 次 LLM 调用，先递增再调用
+                    nextLlmCallCount++;
+                    result = streamingHelper.streamCall(chatModel, retryPrompt, conversationId, "reasoning_compact_retry");
+                } else {
+                    log.warn("[ReasoningNode] Compaction did not reduce messages, cannot retry");
+                }
             }
+        } catch (CancellationException ce) {
+            // "调用已发出但尚未产出内容时用户停止" — streamHelper 抛 CancellationException。
+            // 返回空 finalAnswer + STOPPED，让 FinalAnswerNode 按 STOPPED 语义处理。
+            // 必须显式清零 needsToolCall/shouldSummarize，防止前一轮残留标志导致误路由。
+            log.info("[ReasoningNode] CancellationException during LLM call (user stopped before first token), " +
+                    "returning empty answer with STOPPED, llmCallCount={}", nextLlmCallCount);
+            return MateClawStateAccessor.output()
+                    .finalAnswer("")
+                    .needsToolCall(false)
+                    .shouldSummarize(false)
+                    .llmCallCount(nextLlmCallCount)
+                    .finishReason(FinishReason.STOPPED)
+                    .contentStreamed(true)
+                    .thinkingStreamed(true)
+                    .build();
         }
 
-        // 用户主动停止且有部分内容：设为 finalAnswer + finalThinking 让 accumulator 持久化
+        // ======= 处理 StreamResult =======
+
+        // 用户主动停止且有部分内容
         if (result.stopped() && result.hasAnyContent()) {
             String partialText = result.text() != null ? result.text() : "";
             String partialThinking = result.thinking() != null ? result.thinking() : "";
-            log.info("[ReasoningNode] Stop with partial content ({} chars, thinking {} chars), " +
-                            "flushing as final answer",
+            log.info("[ReasoningNode] Stop with partial content ({} chars, thinking {} chars), flushing as final answer",
                     partialText.length(), partialThinking.length());
             var builder = MateClawStateAccessor.output()
                     .finalAnswer(partialText)
+                    .needsToolCall(false)
+                    .shouldSummarize(false)
                     .contentStreamed(true)
+                    .llmCallCount(nextLlmCallCount)
                     .mergeUsage(state, result)
                     .finishReason(FinishReason.STOPPED);
             if (!partialThinking.isEmpty()) {
@@ -226,59 +270,68 @@ public class ReasoningNode implements NodeAction {
             return builder.build();
         }
 
-        // 错误处理：无任何可用内容时直接终止图执行。
-        // NodeStreamingChatHelper 已广播结构化 error 事件，这里不能再把错误文本当成正常 final answer。
+        // Fatal error：直接设置 finalAnswer 为错误文案 + ERROR_FALLBACK，
+        // 不走 LimitExceededNode（后者会再发一次 LLM 调用，语义不对且对认证/配额错误会再失败）。
+        // ReasoningDispatcher 看到 !needsToolCall && !shouldSummarize → finalAnswerNode，
+        // FinalAnswerNode 检测到 existingAnswer 非空时直接使用，finishReason 保持 ERROR_FALLBACK。
         if (result.hasFatalError()) {
             log.error("[ReasoningNode] Fatal LLM error: {}", result.errorMessage());
-            throw new IllegalStateException(result.errorMessage());
+            return MateClawStateAccessor.output()
+                    .needsToolCall(false)
+                    .shouldSummarize(false)
+                    .finalAnswer("[错误] " + result.errorMessage())
+                    .llmCallCount(nextLlmCallCount)
+                    .finishReason(FinishReason.ERROR_FALLBACK)
+                    .contentStreamed(true)
+                    .thinkingStreamed(true)
+                    .mergeUsage(state, result)
+                    .build();
         }
+
         if (result.partial()) {
-            // 有部分内容 — 当作最终回答处理（LLM 已经回答了大部分）
             log.warn("[ReasoningNode] Partial LLM result ({} chars), treating as final answer", result.text().length());
         }
 
         if (result.hasToolCalls()) {
-            // LLM 请求工具调用
             log.info("[ReasoningNode] LLM requested {} tool call(s): {}",
                     result.toolCalls().size(),
                     result.toolCalls().stream().map(AssistantMessage.ToolCall::name).toList());
 
             return MateClawStateAccessor.output()
                     .needsToolCall(true)
+                    .shouldSummarize(false)
                     .toolCalls(result.toolCalls())
                     .messages(List.of((Message) result.assistantMessage()))
                     .currentPhase("reasoning")
                     .currentThinking(result.thinking())
-                    // 暂存已流式推送的 content/thinking，供 AWAITING_APPROVAL 路径持久化
                     .streamedContent(result.text() != null ? result.text() : "")
                     .streamedThinking(result.thinking())
                     .contentStreamed(true)
                     .thinkingStreamed(!result.thinking().isEmpty())
+                    .llmCallCount(nextLlmCallCount)
                     .mergeUsage(state, result)
                     .events(List.of(phaseEvent))
                     .build();
         } else {
-            // LLM 给出最终回答
             String content = result.text();
             log.info("[ReasoningNode] LLM produced final answer ({} chars)", content != null ? content.length() : 0);
 
             return MateClawStateAccessor.output()
                     .needsToolCall(false)
+                    .shouldSummarize(false)
                     .finalAnswer(content != null ? content : "")
                     .finalThinking(result.thinking())
                     .messages(List.of((Message) result.assistantMessage()))
                     .currentPhase("reasoning")
                     .contentStreamed(true)
                     .thinkingStreamed(!result.thinking().isEmpty())
+                    .llmCallCount(nextLlmCallCount)
                     .mergeUsage(state, result)
                     .events(List.of(phaseEvent))
                     .build();
         }
     }
 
-    /**
-     * 反序列化 JSON 为 ToolCall
-     */
     private AssistantMessage.ToolCall deserializeToolCall(String json) {
         try {
             @SuppressWarnings("unchecked")

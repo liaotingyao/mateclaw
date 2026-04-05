@@ -7,12 +7,15 @@ import org.springframework.ai.chat.model.ChatResponse;
 import org.springframework.ai.chat.prompt.Prompt;
 import vip.mate.channel.web.ChatStreamTracker;
 
+import reactor.core.Disposable;
+
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.CancellationException;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 
@@ -236,9 +239,15 @@ public class NodeStreamingChatHelper {
         AtomicInteger promptTokens = new AtomicInteger(0);
         AtomicInteger completionTokens = new AtomicInteger(0);
 
+        // 重复检测器：检测 LLM 退化输出（如不断重复同一句话）
+        RepetitionDetector contentRepDetector = new RepetitionDetector();
+        RepetitionDetector thinkingRepDetector = new RepetitionDetector();
+        // 重复检测触发后设为 true，外层轮询线程据此 dispose 订阅
+        AtomicBoolean repetitionTriggered = new AtomicBoolean(false);
+
         CountDownLatch latch = new CountDownLatch(1);
 
-        chatModel.stream(prompt)
+        Disposable subscription = chatModel.stream(prompt)
                 .doOnNext(chatResponse -> {
                     if (chatResponse == null || chatResponse.getResults() == null || chatResponse.getResults().isEmpty()) {
                         return;
@@ -247,18 +256,35 @@ public class NodeStreamingChatHelper {
                     AssistantMessage msg = generation.getOutput();
                     lastAssistantMessage.set(msg);
 
-                    // 1. 提取 content delta
+                    // 重复已触发 → 跳过一切处理（等外层 dispose）
+                    if (repetitionTriggered.get()) {
+                        return;
+                    }
+
+                    // 1. 提取 content delta（含重复检测）
                     String contentDelta = msg.getText();
                     if (contentDelta != null && !contentDelta.isEmpty()) {
+                        if (contentRepDetector.appendAndCheck(contentDelta)) {
+                            log.warn("[{}] Content repetition detected, will cancel stream " +
+                                    "for conversation {}", phase, conversationId);
+                            repetitionTriggered.set(true);
+                            return;
+                        }
                         contentAccum.append(contentDelta);
                         if (broadcast) {
                             broadcastDelta(conversationId, "content_delta", contentDelta);
                         }
                     }
 
-                    // 2. 提取 thinking delta（从 properties 中的 reasoningContent）
+                    // 2. 提取 thinking delta（含重复检测）
                     String thinkingDelta = extractReasoningContent(msg);
                     if (thinkingDelta != null && !thinkingDelta.isEmpty()) {
+                        if (thinkingRepDetector.appendAndCheck(thinkingDelta)) {
+                            log.warn("[{}] Thinking repetition detected, will cancel stream " +
+                                    "for conversation {}", phase, conversationId);
+                            repetitionTriggered.set(true);
+                            return;
+                        }
                         thinkingAccum.append(thinkingDelta);
                         if (broadcast) {
                             broadcastDelta(conversationId, "thinking_delta", thinkingDelta);
@@ -287,12 +313,25 @@ public class NodeStreamingChatHelper {
                         latch::countDown
                 );
 
-        // 阻塞等待流完成（节点本身是同步 NodeAction），每 500ms 检查一次停止标志
+        // 阻塞等待流完成（节点本身是同步 NodeAction），每 500ms 检查一次停止/重复标志
         try {
             long deadlineMs = System.currentTimeMillis() + TimeUnit.MINUTES.toMillis(10);
             while (!latch.await(500, TimeUnit.MILLISECONDS)) {
+                // 重复检测触发 → 立即 dispose 上游订阅，停止消耗 tokens
+                if (repetitionTriggered.get()) {
+                    log.warn("[{}] Repetition detected, disposing upstream subscription " +
+                            "for conversation {}", phase, conversationId);
+                    subscription.dispose();
+                    if (broadcast) {
+                        broadcastDelta(conversationId, "warning",
+                                buildDeltaJson("检测到模型输出重复，已自动截断"));
+                    }
+                    // dispose 后 latch 可能不会 countDown，直接跳出
+                    break;
+                }
                 if (streamTracker.isStopRequested(conversationId)) {
-                    // 不直接抛异常 — 先检查是否已有累积内容，有则返回 partial stopped result
+                    // 用户主动停止 — 也 dispose 上游
+                    subscription.dispose();
                     boolean hasContent = !contentAccum.isEmpty() || !thinkingAccum.isEmpty()
                             || !toolCallAccumulators.isEmpty();
                     if (hasContent) {
@@ -309,11 +348,13 @@ public class NodeStreamingChatHelper {
                     throw new CancellationException("Stream stopped by user");
                 }
                 if (System.currentTimeMillis() > deadlineMs) {
+                    subscription.dispose();
                     log.warn("[{}] Stream call timed out for conversation {}", phase, conversationId);
                     return buildErrorResult("LLM 调用超时", conversationId, phase);
                 }
             }
         } catch (InterruptedException e) {
+            subscription.dispose();
             Thread.currentThread().interrupt();
             return buildErrorResult("LLM 调用被中断", conversationId, phase);
         }
@@ -367,9 +408,16 @@ public class NodeStreamingChatHelper {
                     conversationId, phase, errorType);
         }
 
-        // ===== 成功 =====
+        // ===== 成功（检查是否因重复被截断） =====
+        boolean truncatedByRepetition = repetitionTriggered.get();
+        if (truncatedByRepetition) {
+            log.warn("[{}] LLM output was truncated due to repetition detection for conversation {}",
+                    phase, conversationId);
+            // warning 已在 dispose 时广播，无需重复
+        }
         return assembleResult(contentAccum, thinkingAccum, toolCallAccumulators,
-                promptTokens.get(), completionTokens.get(), phase, false, null);
+                promptTokens.get(), completionTokens.get(), phase,
+                truncatedByRepetition, truncatedByRepetition ? "output_truncated_repetition" : null);
     }
 
     /** 组装 stopped partial 结果（用户主动停止，有已累积内容） */

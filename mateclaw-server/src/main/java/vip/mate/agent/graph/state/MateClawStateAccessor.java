@@ -74,6 +74,10 @@ public final class MateClawStateAccessor {
         return state.value(TOOL_CALL_COUNT, 0);
     }
 
+    public int llmCallCount() {
+        return state.value(LLM_CALL_COUNT, 0);
+    }
+
     // ===== 观察历史 =====
 
     @SuppressWarnings("unchecked")
@@ -271,6 +275,10 @@ public final class MateClawStateAccessor {
 
         public OutputBuilder toolCallCount(int count) {
             return put(TOOL_CALL_COUNT, count);
+        }
+
+        public OutputBuilder llmCallCount(int count) {
+            return put(LLM_CALL_COUNT, count);
         }
 
         // ---- 观察 ----

@@ -76,6 +76,13 @@ public class ObservationNode implements NodeAction {
         List<String> updatedHistory = new ArrayList<>(existingHistory);
         updatedHistory.add(combinedObservation);
 
+        // 检测重复观察：最近 N 条完全相同则强制终止
+        boolean duplicateObservation = detectDuplicateObservations(existingHistory, combinedObservation, 3);
+        if (duplicateObservation) {
+            log.warn("[ObservationNode] Detected {} consecutive identical observations, " +
+                    "forcing limit exceeded to break loop", 3);
+        }
+
         // 判断是否需要 summarize
         boolean shouldSummarize = observationProcessor.needsSummarizing(
                 existingHistory, combinedObservation);
@@ -89,11 +96,34 @@ public class ObservationNode implements NodeAction {
                     existingHistory.size(), combinedObservation.length(), newToolCallCount);
         }
 
-        return MateClawStateAccessor.output()
+        var builder = MateClawStateAccessor.output()
                 .iterationCount(nextIteration)
                 .put(OBSERVATION_HISTORY, updatedHistory)
                 .shouldSummarize(shouldSummarize)
-                .toolCallCount(newToolCallCount)
-                .build();
+                .toolCallCount(newToolCallCount);
+
+        // 重复观察时标记错误，让 ObservationDispatcher 路由到 limitExceededNode
+        if (duplicateObservation) {
+            builder.put(ERROR, "连续 3 次工具调用返回相同结果，已强制终止循环");
+        }
+
+        return builder.build();
+    }
+
+    /**
+     * 检测最近 N 条观察是否与当前观察完全相同
+     */
+    private boolean detectDuplicateObservations(List<String> history, String current, int threshold) {
+        if (history.size() < threshold - 1 || current == null || current.isEmpty()) {
+            return false;
+        }
+        // 检查 history 的最后 (threshold-1) 条是否都与 current 相同
+        int start = history.size() - (threshold - 1);
+        for (int i = start; i < history.size(); i++) {
+            if (!current.equals(history.get(i))) {
+                return false;
+            }
+        }
+        return true;
     }
 }
