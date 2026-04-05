@@ -183,6 +183,8 @@ export default {
       title: '模型管理',
       desc: '配置模型 Provider、凭证和模型列表',
       addProvider: '新增 Provider',
+      localProviders: '本地模型',
+      cloudProviders: '云端模型',
       active: '当前激活',
       setActive: '设为激活',
       configured: '已配置',

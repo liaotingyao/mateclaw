@@ -183,6 +183,8 @@ export default {
       title: 'Model Management',
       desc: 'Configure model providers, credentials, and model lists',
       addProvider: 'Add Provider',
+      localProviders: 'Local Models',
+      cloudProviders: 'Cloud Models',
       active: 'Active',
       setActive: 'Set Active',
       configured: 'Configured',

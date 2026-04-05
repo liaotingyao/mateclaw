@@ -193,7 +193,8 @@ public class ModelConfigService {
             throw new MateClawException("模型不存在: " + providerId + "/" + modelName);
         }
         if (!Boolean.TRUE.equals(entity.getEnabled())) {
-            throw new MateClawException("只有启用状态的模型才能设为默认");
+            // Auto-enable when setting as default (e.g. local Ollama models)
+            entity.setEnabled(true);
         }
         clearDefaultFlag();
         entity.setIsDefault(true);

@@ -10,83 +10,56 @@
       </button>
     </div>
 
-    <div class="provider-grid">
-      <div v-for="provider in providers" :key="provider.id" class="provider-card">
-        <div class="provider-header">
-          <div>
-            <div class="provider-title-row">
-              <img
-                :src="getProviderIcon(provider.id)"
-                :alt="provider.name"
-                class="provider-icon"
-                @error="onIconError"
-              />
-              <h3 class="provider-name">{{ provider.name }}</h3>
-              <span class="provider-badge" :class="provider.isCustom ? 'custom' : 'builtin'">
-                {{ provider.isCustom ? t('settings.model.custom') : t('settings.model.builtin') }}
-              </span>
-              <span v-if="isProviderActive(provider)" class="provider-badge active">
-                {{ t('settings.model.active') }}
-              </span>
-            </div>
-            <p class="provider-id">{{ provider.id }}</p>
-          </div>
-          <div class="provider-status" :class="providerStatus(provider).type">
-            {{ providerStatus(provider).label }}
-          </div>
+    <!-- 本地模型 -->
+    <div v-if="localProviders.length" class="provider-group">
+      <h3 class="group-title">
+        <svg class="group-title__icon" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <rect x="2" y="3" width="20" height="14" rx="2"/><line x1="8" y1="21" x2="16" y2="21"/><line x1="12" y1="17" x2="12" y2="21"/>
+        </svg>
+        {{ t('settings.model.localProviders') }}
+      </h3>
+      <div class="provider-grid">
+        <div v-for="provider in localProviders" :key="provider.id" class="provider-card">
+          <ProviderCard
+            :provider="provider"
+            :connection-testing-id="connectionTestingId"
+            :connection-results="connectionResults"
+            :is-provider-active="isProviderActive"
+            :provider-status="providerStatus"
+            :get-provider-icon="getProviderIcon"
+            :on-icon-error="onIconError"
+            @manage-models="openManageModelsModal"
+            @provider-settings="openProviderConfigModal"
+            @test-connection="handleTestConnection"
+            @delete-provider="onDeleteProvider"
+          />
         </div>
+      </div>
+    </div>
 
-        <div class="provider-info">
-          <div class="info-row">
-            <span class="info-label">{{ t('settings.model.baseUrl') }}</span>
-            <span class="info-value mono" :title="provider.baseUrl || ''">
-              {{ provider.baseUrl || t('settings.model.notSet') }}
-            </span>
-          </div>
-          <div class="info-row">
-            <span class="info-label">{{ t('settings.model.apiKey') }}</span>
-            <span class="info-value mono">{{ provider.apiKey || t('settings.model.notSet') }}</span>
-          </div>
-          <div class="info-row">
-            <span class="info-label">{{ t('settings.fields.modelName') }}</span>
-            <span class="info-value">
-              {{ t('settings.model.modelCount', { count: (provider.models?.length || 0) + (provider.extraModels?.length || 0) }) }}
-            </span>
-          </div>
-        </div>
-
-        <div class="card-actions">
-          <button class="card-btn" @click="openManageModelsModal(provider)">
-            {{ t('settings.model.actions.manageModels') }}
-          </button>
-          <button class="card-btn" @click="openProviderConfigModal(provider)">
-            {{ t('settings.model.actions.providerSettings') }}
-          </button>
-          <button
-            v-if="provider.supportConnectionCheck && provider.configured"
-            class="card-btn"
-            :class="{ testing: connectionTestingId === provider.id }"
-            :disabled="connectionTestingId === provider.id"
-            @click="handleTestConnection(provider)"
-          >
-            {{ connectionTestingId === provider.id ? t('settings.model.discovery.testing') : t('settings.model.discovery.testConnection') }}
-          </button>
-          <button
-            v-if="provider.isCustom"
-            class="card-btn danger"
-            @click="onDeleteProvider(provider)"
-          >
-            {{ t('common.delete') }}
-          </button>
-        </div>
-
-        <div v-if="connectionResults[provider.id]" class="connection-result" :class="connectionResults[provider.id].success ? 'success' : 'error'">
-          <span v-if="connectionResults[provider.id].success">
-            {{ t('settings.model.discovery.connectionOk') }} · {{ t('settings.model.discovery.latency', { ms: connectionResults[provider.id].latencyMs }) }}
-          </span>
-          <span v-else>
-            {{ t('settings.model.discovery.connectionFail') }}: {{ connectionResults[provider.id].errorMessage }}
-          </span>
+    <!-- 云端模型 -->
+    <div v-if="cloudProviders.length" class="provider-group">
+      <h3 class="group-title">
+        <svg class="group-title__icon" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <path d="M18 10h-1.26A8 8 0 1 0 9 20h9a5 5 0 0 0 0-10z"/>
+        </svg>
+        {{ t('settings.model.cloudProviders') }}
+      </h3>
+      <div class="provider-grid">
+        <div v-for="provider in cloudProviders" :key="provider.id" class="provider-card">
+          <ProviderCard
+            :provider="provider"
+            :connection-testing-id="connectionTestingId"
+            :connection-results="connectionResults"
+            :is-provider-active="isProviderActive"
+            :provider-status="providerStatus"
+            :get-provider-icon="getProviderIcon"
+            :on-icon-error="onIconError"
+            @manage-models="openManageModelsModal"
+            @provider-settings="openProviderConfigModal"
+            @test-connection="handleTestConnection"
+            @delete-provider="onDeleteProvider"
+          />
         </div>
       </div>
     </div>
@@ -138,11 +111,12 @@
 </template>
 
 <script setup lang="ts">
-import { onMounted, ref } from 'vue'
+import { computed, onMounted, ref } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { ElMessage } from 'element-plus'
 import type { ProviderInfo, ProviderModelInfo } from '@/types'
 import { useProviders } from './useProviders'
+import ProviderCard from './ProviderCard.vue'
 import ProviderConfigModal from './modals/ProviderConfigModal.vue'
 import ManageModelsModal from './modals/ManageModelsModal.vue'
 
@@ -195,6 +169,9 @@ const {
   getProviderIcon,
   onIconError,
 } = useProviders()
+
+const localProviders = computed(() => providers.value.filter(p => p.isLocal))
+const cloudProviders = computed(() => providers.value.filter(p => !p.isLocal))
 
 onMounted(async () => {
   await Promise.all([loadProviders(), loadActiveModel()])
@@ -256,53 +233,42 @@ function showSavedTip(message: string) {
 .section-title { margin: 0 0 6px; font-size: 22px; font-weight: 700; color: var(--mc-text-primary); }
 .section-desc { margin: 0; font-size: 14px; color: var(--mc-text-secondary); }
 
-.provider-grid {
+.provider-group {
+  margin-bottom: 28px;
+}
+
+.group-title {
   display: flex;
-  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  margin: 0 0 14px;
+  font-size: 16px;
+  font-weight: 600;
+  color: var(--mc-text-primary);
+}
+
+.group-title__icon {
+  flex-shrink: 0;
+  color: var(--mc-text-secondary);
+}
+
+.provider-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(360px, 1fr));
   gap: 16px;
-  align-items: stretch;
 }
 .provider-card {
-  flex: 1 1 calc(33.333% - 16px);
-  min-width: 360px;
   background: var(--mc-bg-elevated); border: 1px solid var(--mc-border); border-radius: 16px; padding: 18px; box-shadow: 0 8px 24px rgba(124, 63, 30, 0.04);
 }
-.provider-header { display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; margin-bottom: 14px; }
-.provider-title-row { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
-.provider-icon { width: 28px; height: 28px; border-radius: 6px; object-fit: contain; flex-shrink: 0; }
-.provider-name { margin: 0; font-size: 18px; color: var(--mc-text-primary); }
-.provider-id { margin: 6px 0 0; font-size: 13px; color: var(--mc-primary); }
-.provider-badge { display: inline-flex; align-items: center; border-radius: 999px; padding: 3px 9px; font-size: 12px; font-weight: 600; }
-.provider-badge.builtin { background: var(--mc-primary-bg); color: var(--mc-primary); }
-.provider-badge.custom { background: var(--mc-primary-bg); color: var(--mc-primary-hover); }
-.provider-badge.active { background: rgba(217, 119, 87, 0.12); color: var(--mc-primary-light); }
-.provider-status { flex-shrink: 0; padding: 4px 10px; border-radius: 999px; font-size: 12px; font-weight: 700; }
-.provider-status.configured { background: var(--mc-primary-bg); color: var(--mc-primary); }
-.provider-status.partial { background: var(--mc-primary-bg); color: var(--mc-primary-hover); }
-.provider-status.unavailable { background: var(--mc-bg-sunken); color: var(--mc-text-tertiary); }
-.provider-info { display: grid; gap: 10px; }
-.info-row { display: flex; justify-content: space-between; gap: 12px; }
-.info-label { color: var(--mc-text-secondary); font-size: 13px; }
-.info-value { color: var(--mc-text-primary); font-size: 13px; text-align: right; word-break: break-all; }
-.mono { font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace; }
-.card-actions { display: flex; gap: 8px; margin-top: 16px; flex-wrap: wrap; }
-
-.btn-primary, .card-btn { border: none; border-radius: 10px; padding: 9px 14px; font-size: 14px; cursor: pointer; transition: all 0.15s; }
-.btn-primary { background: var(--mc-primary); color: white; }
+.btn-primary { border: none; border-radius: 10px; padding: 9px 14px; font-size: 14px; cursor: pointer; transition: all 0.15s; background: var(--mc-primary); color: white; }
 .btn-primary:hover { background: var(--mc-primary-hover); }
-.card-btn { background: var(--mc-primary-bg); color: var(--mc-primary); }
-.card-btn:hover { background: rgba(217, 119, 87, 0.18); }
-.card-btn.danger { background: var(--mc-danger-bg); color: var(--mc-danger); }
-.card-btn.testing { opacity: 0.6; cursor: wait; }
-
-.connection-result { margin-top: 10px; padding: 8px 12px; border-radius: 8px; font-size: 12px; }
-.connection-result.success { background: var(--mc-primary-bg); color: var(--mc-primary); }
-.connection-result.error { background: var(--mc-danger-bg); color: var(--mc-danger); }
 
 .save-tip { position: fixed; right: 24px; bottom: 24px; background: var(--mc-text-primary); color: var(--mc-text-inverse); padding: 10px 14px; border-radius: 10px; box-shadow: 0 10px 30px rgba(124, 63, 30, 0.22); }
 
 @media (max-width: 900px) {
   .section-header { flex-direction: column; }
-  .provider-card { flex-basis: 100%; min-width: 0; }
+}
+@media (max-width: 640px) {
+  .provider-grid { grid-template-columns: 1fr; }
 }
 </style>
