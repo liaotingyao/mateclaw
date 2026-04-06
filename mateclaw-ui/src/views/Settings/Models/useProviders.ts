@@ -157,7 +157,7 @@ export function useProviders() {
       }
     }
     closeProviderModal()
-    await loadProviders()
+    await Promise.all([loadProviders(), loadActiveModel()])
   }
 
   async function deleteProvider(provider: ProviderInfo) {

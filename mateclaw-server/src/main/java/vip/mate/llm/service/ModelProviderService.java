@@ -44,6 +44,7 @@ public class ModelProviderService {
         provider.setChatModel(ModelProtocol.resolveChatModel(request.getProtocol(), request.getChatModel()));
         provider.setGenerateKwargs(writeJson(request.getGenerateKwargs()));
         modelProviderMapper.updateById(provider);
+        tryAutoActivateModel(providerId, provider);
         eventPublisher.publishEvent(new ModelConfigChangedEvent("provider-config-updated"));
         return toProviderInfo(provider, modelConfigService.listModelsByProvider(providerId));
     }
@@ -129,6 +130,30 @@ public class ModelProviderService {
             return "Provider 下没有可用模型";
         }
         return null;
+    }
+
+    private void tryAutoActivateModel(String providerId, ModelProviderEntity provider) {
+        if (!isProviderConfigured(provider)) {
+            return;
+        }
+        List<ModelConfigEntity> providerModels = modelConfigService.listModelsByProvider(providerId);
+        if (providerModels.isEmpty()) {
+            return;
+        }
+        boolean shouldAutoActivate = false;
+        try {
+            ModelConfigEntity currentDefault = modelConfigService.getDefaultModel();
+            ModelProviderEntity defaultProvider = modelProviderMapper.selectById(currentDefault.getProvider());
+            if (!isProviderConfigured(defaultProvider)) {
+                shouldAutoActivate = true;
+            }
+        } catch (MateClawException e) {
+            shouldAutoActivate = true;
+        }
+        if (shouldAutoActivate) {
+            ModelConfigEntity firstModel = providerModels.get(0);
+            modelConfigService.setDefaultModel(providerId, firstModel.getModelName());
+        }
     }
 
     private ModelProviderEntity getProvider(String providerId) {
