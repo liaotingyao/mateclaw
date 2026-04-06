@@ -11,6 +11,7 @@ import vip.mate.agent.model.AgentEntity;
 import vip.mate.agent.repository.AgentMapper;
 import vip.mate.exception.MateClawException;
 import vip.mate.llm.event.ModelConfigChangedEvent;
+import vip.mate.memory.service.MemoryRecallTracker;
 
 import java.util.List;
 import java.util.Map;
@@ -31,6 +32,7 @@ public class AgentService {
 
     private final AgentMapper agentMapper;
     private final AgentGraphBuilder agentGraphBuilder;
+    private final MemoryRecallTracker memoryRecallTracker;
 
     /** 运行时 Agent 实例缓存（agentId -> BaseAgent） */
     private final Map<Long, BaseAgent> agentInstances = new ConcurrentHashMap<>();
@@ -73,11 +75,13 @@ public class AgentService {
     // ==================== 运行时入口 ====================
 
     public String chat(Long agentId, String message, String conversationId) {
+        memoryRecallTracker.trackRecalls(agentId, message);
         BaseAgent agent = getOrBuildAgent(agentId);
         return agent.chat(message, conversationId);
     }
 
     public Flux<String> chatStream(Long agentId, String message, String conversationId) {
+        memoryRecallTracker.trackRecalls(agentId, message);
         BaseAgent agent = getOrBuildAgent(agentId);
         return agent.chatStream(message, conversationId);
     }
@@ -88,6 +92,7 @@ public class AgentService {
 
     public Flux<StreamDelta> chatStructuredStream(Long agentId, String message, String conversationId,
                                                    String requesterId) {
+        memoryRecallTracker.trackRecalls(agentId, message);
         BaseAgent agent = getOrBuildAgent(agentId);
 
         if (agent instanceof StructuredStreamCapable capable) {
@@ -101,6 +106,7 @@ public class AgentService {
     }
 
     public String execute(Long agentId, String goal, String conversationId) {
+        memoryRecallTracker.trackRecalls(agentId, goal);
         BaseAgent agent = getOrBuildAgent(agentId);
         return agent.execute(goal, conversationId);
     }
@@ -116,6 +122,7 @@ public class AgentService {
      */
     public String chatWithReplay(Long agentId, String userMessage, String conversationId,
                                   String toolCallPayload) {
+        memoryRecallTracker.trackRecalls(agentId, userMessage);
         BaseAgent agent = getOrBuildAgent(agentId);
         return agent.chatWithReplay(userMessage, conversationId, toolCallPayload);
     }
@@ -130,6 +137,7 @@ public class AgentService {
 
     public Flux<StreamDelta> chatWithReplayStream(Long agentId, String userMessage, String conversationId,
                                                    String toolCallPayload, String requesterId) {
+        memoryRecallTracker.trackRecalls(agentId, userMessage);
         BaseAgent agent = getOrBuildAgent(agentId);
         return agent.chatWithReplayStream(userMessage, conversationId, toolCallPayload,
                 requesterId != null ? requesterId : "");

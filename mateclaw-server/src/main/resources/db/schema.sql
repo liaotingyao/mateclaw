@@ -409,3 +409,25 @@ ALTER TABLE mate_message ADD COLUMN IF NOT EXISTS metadata JSON;
 
 CREATE INDEX IF NOT EXISTS idx_guard_audit_conv ON mate_tool_guard_audit_log(conversation_id);
 CREATE INDEX IF NOT EXISTS idx_guard_audit_time ON mate_tool_guard_audit_log(create_time);
+
+-- 记忆召回追踪表（Dreaming 评分驱动记忆整合）
+CREATE TABLE IF NOT EXISTS mate_memory_recall (
+    id                BIGINT       NOT NULL PRIMARY KEY,
+    agent_id          BIGINT       NOT NULL,
+    filename          VARCHAR(256) NOT NULL,
+    snippet_hash      VARCHAR(64),
+    snippet_preview   VARCHAR(512),
+    recall_count      INT          NOT NULL DEFAULT 0,
+    daily_count       INT          NOT NULL DEFAULT 0,
+    query_hashes      TEXT,
+    score             DOUBLE       NOT NULL DEFAULT 0.0,
+    last_recalled_at  DATETIME,
+    promoted          BOOLEAN      NOT NULL DEFAULT FALSE,
+    create_time       DATETIME     NOT NULL,
+    update_time       DATETIME     NOT NULL,
+    deleted           INT          NOT NULL DEFAULT 0
+);
+
+CREATE INDEX IF NOT EXISTS idx_memory_recall_agent ON mate_memory_recall(agent_id);
+CREATE INDEX IF NOT EXISTS idx_memory_recall_agent_file ON mate_memory_recall(agent_id, filename);
+CREATE INDEX IF NOT EXISTS idx_memory_recall_score ON mate_memory_recall(agent_id, score);

@@ -38,4 +38,15 @@ public class MemoryProperties {
 
     /** 构建对话 transcript 时的最大消息数（防止过长） */
     private int maxTranscriptMessages = 30;
+
+    // ==================== Dreaming 配置 ====================
+
+    /** 启用定时 Dreaming（自动执行记忆整合） */
+    private boolean dreamingEnabled = true;
+
+    /** Dreaming 调度 cron 表达式（Spring 6 字段格式，默认每天凌晨 3 点） */
+    private String dreamingCron = "0 0 3 * * ?";
+
+    /** 记忆召回评分阈值，低于此分的候选不进入 LLM 整合 */
+    private double emergenceScoreThreshold = 0.4;
 }

@@ -15,11 +15,13 @@ import vip.mate.agent.prompt.PromptLoader;
 import vip.mate.llm.service.ModelConfigService;
 import vip.mate.llm.model.ModelConfigEntity;
 import vip.mate.memory.MemoryProperties;
+import vip.mate.memory.model.MemoryRecallEntity;
 import vip.mate.workspace.document.WorkspaceFileService;
 import vip.mate.workspace.document.model.WorkspaceFileEntity;
 
 import java.util.Comparator;
 import java.util.List;
+import java.util.stream.Collectors;
 
 /**
  * 记忆整合服务
@@ -39,6 +41,7 @@ public class MemoryEmergenceService {
     private final AgentGraphBuilder agentGraphBuilder;
     private final MemoryProperties properties;
     private final ObjectMapper objectMapper;
+    private final MemoryRecallService recallService;
 
     /**
      * 执行记忆整合：将 daily notes 中的重复模式提炼到 MEMORY.md
@@ -84,13 +87,34 @@ public class MemoryEmergenceService {
         // 3. 读取现有 MEMORY.md
         String memoryContent = readFileContentSafe(agentId, "MEMORY.md");
 
-        // 4. 构建 prompt 并调用 LLM
+        // 4. 计算召回评分（必须在 resetDailyCounts 之前，否则 velocity 信号被清零）
+        List<MemoryRecallEntity> scoredCandidates = recallService.computeScores(agentId);
+        boolean hasScoredCandidates = !scoredCandidates.isEmpty();
+
+        // 5. 评分快照完成后再重置 dailyCount，为下一轮积累
+        recallService.resetDailyCounts(agentId);
+
         String systemPrompt = PromptLoader.loadPrompt("memory/emergence-system");
-        String userTemplate = PromptLoader.loadPrompt("memory/emergence-user");
-        String userPrompt = userTemplate
-                .replace("{memory}", memoryContent)
-                .replace("{day_range}", String.valueOf(properties.getEmergenceDayRange()))
-                .replace("{daily_notes}", dailyNotes);
+        String userPrompt;
+
+        if (hasScoredCandidates) {
+            // 使用评分增强的 prompt
+            String candidatesText = formatScoredCandidates(scoredCandidates);
+            String userTemplate = PromptLoader.loadPrompt("memory/emergence-scored-user");
+            userPrompt = userTemplate
+                    .replace("{memory}", memoryContent)
+                    .replace("{scored_candidates}", candidatesText)
+                    .replace("{day_range}", String.valueOf(properties.getEmergenceDayRange()))
+                    .replace("{daily_notes}", dailyNotes);
+            log.info("[Memory] Emergence with {} scored candidates for agent={}", scoredCandidates.size(), agentId);
+        } else {
+            // 冷启动：回退到原有纯 LLM 逻辑
+            String userTemplate = PromptLoader.loadPrompt("memory/emergence-user");
+            userPrompt = userTemplate
+                    .replace("{memory}", memoryContent)
+                    .replace("{day_range}", String.valueOf(properties.getEmergenceDayRange()))
+                    .replace("{daily_notes}", dailyNotes);
+        }
 
         String llmResponse;
         try {
@@ -122,11 +146,66 @@ public class MemoryEmergenceService {
                     workspaceFileService.saveFile(agentId, "MEMORY.md", newContent);
                     String reason = root.path("reason").asText("");
                     log.info("[Memory] Emergence completed for agent={}: {}", agentId, reason);
+
+                    // 逐候选检查：只有内容被 LLM 实际采纳（出现在新 MEMORY.md 中）的才标记为已提升
+                    if (hasScoredCandidates) {
+                        List<Long> promotedIds = scoredCandidates.stream()
+                                .filter(c -> candidateAdoptedInMemory(c, newContent))
+                                .map(MemoryRecallEntity::getId)
+                                .collect(Collectors.toList());
+                        if (!promotedIds.isEmpty()) {
+                            recallService.markPromoted(promotedIds);
+                        }
+                        log.info("[Memory] Promoted {}/{} recall candidates for agent={}",
+                                promotedIds.size(), scoredCandidates.size(), agentId);
+                    }
                 }
             }
         } catch (Exception e) {
             log.warn("[Memory] Failed to parse/apply emergence result for agent={}: {}", agentId, e.getMessage());
         }
+    }
+
+    private String formatScoredCandidates(List<MemoryRecallEntity> candidates) {
+        StringBuilder sb = new StringBuilder();
+        for (MemoryRecallEntity entry : candidates) {
+            sb.append(String.format("### %s (score=%.2f, recalls=%d)\n",
+                    entry.getFilename(), entry.getScore(), entry.getRecallCount()));
+            if (entry.getSnippetPreview() != null) {
+                sb.append(entry.getSnippetPreview());
+                sb.append("\n\n");
+            }
+        }
+        return sb.toString().trim();
+    }
+
+    /**
+     * 判断候选片段是否被 LLM 实际采纳到新 MEMORY.md 中。
+     * 通过检查片段预览中的关键短语（取前 3 个非空行的前 20 字符）是否出现在新内容中。
+     */
+    private boolean candidateAdoptedInMemory(MemoryRecallEntity candidate, String newMemoryContent) {
+        String preview = candidate.getSnippetPreview();
+        if (preview == null || preview.isBlank() || newMemoryContent == null) {
+            return false;
+        }
+        // 从 snippet 提取关键短语进行匹配
+        String[] lines = preview.split("\n");
+        int matched = 0;
+        int checked = 0;
+        for (String line : lines) {
+            String trimmed = line.trim();
+            if (trimmed.isEmpty() || trimmed.startsWith("#")) continue;
+            if (checked >= 3) break;
+            checked++;
+            // 取行的核心内容（去掉 markdown 标记），检查是否出现在新 MEMORY.md 中
+            String key = trimmed.replaceAll("^[-*>]+\\s*", "");
+            if (key.length() > 20) key = key.substring(0, 20);
+            if (key.length() >= 5 && newMemoryContent.contains(key)) {
+                matched++;
+            }
+        }
+        // 至少有 1 个关键短语命中才算采纳
+        return matched > 0;
     }
 
     private ChatModel buildChatModel() {
