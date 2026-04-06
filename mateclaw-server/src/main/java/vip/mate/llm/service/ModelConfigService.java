@@ -223,9 +223,6 @@ public class ModelConfigService {
         if (!StringUtils.hasText(entity.getProvider())) {
             entity.setProvider("dashscope");
         }
-        if (!"dashscope".equals(entity.getProvider())) {
-            throw new MateClawException("当前仅支持 dashscope provider");
-        }
         if (!StringUtils.hasText(entity.getModelName())) {
             throw new MateClawException("模型标识不能为空");
         }
