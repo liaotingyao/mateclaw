@@ -53,19 +53,44 @@ public class ToolExecutionExecutor {
     /** 工具结果最大字符数（防止超长结果膨胀 ToolResponseMessage → 撑爆 LLM 上下文） */
     private static final int MAX_TOOL_RESULT_CHARS = 8000;
 
+    /** 尾部错误模式检测 */
+    private static final java.util.regex.Pattern ERROR_TAIL_PATTERN = java.util.regex.Pattern.compile(
+            "(?i)\\b(error|exception|traceback|failed|fatal|panic|stack.?trace|errno)\\b");
+
+    /**
+     * 智能截断工具结果：检测尾部是否含错误信息，动态调整 head/tail 比例。
+     * 错误信息在尾部时保留 80% tail，确保 agent 能看到错误原因。
+     */
+    static String truncateToolResult(String result, int maxChars) {
+        if (result == null || result.length() <= maxChars) return result;
+        int rawLen = result.length();
+        // 检测尾部 2000 字符是否含错误模式
+        String tailRegion = result.substring(Math.max(0, rawLen - 2000));
+        double headRatio = ERROR_TAIL_PATTERN.matcher(tailRegion).find() ? 0.2 : 0.4;
+        int headLen = (int) (maxChars * headRatio);
+        int tailLen = maxChars - headLen - 80;
+        if (tailLen <= 0) tailLen = maxChars / 2;
+        return result.substring(0, headLen)
+                + "\n\n... [结果已截断，原始 " + rawLen + " 字符，保留首尾关键片段] ...\n\n"
+                + result.substring(rawLen - tailLen);
+    }
+
     private final Map<String, ToolCallback> toolCallbackMap;
     private final ToolGuardService toolGuardService;
     private final ToolGuard toolGuard; // legacy fallback
     private final ApprovalWorkflowService approvalService;
     private final ChatStreamTracker streamTracker;
+    private final vip.mate.config.ToolTimeoutProperties toolTimeoutProperties;
 
     public ToolExecutionExecutor(AgentToolSet toolSet, ToolGuardService toolGuardService,
                                   ApprovalWorkflowService approvalService, ChatStreamTracker streamTracker) {
-        this.toolCallbackMap = toolSet.callbackByName();
-        this.toolGuardService = toolGuardService;
-        this.toolGuard = null;
-        this.approvalService = approvalService;
-        this.streamTracker = streamTracker;
+        this(toolSet, toolGuardService, null, approvalService, streamTracker, null);
+    }
+
+    public ToolExecutionExecutor(AgentToolSet toolSet, ToolGuardService toolGuardService,
+                                  ApprovalWorkflowService approvalService, ChatStreamTracker streamTracker,
+                                  vip.mate.config.ToolTimeoutProperties toolTimeoutProperties) {
+        this(toolSet, toolGuardService, null, approvalService, streamTracker, toolTimeoutProperties);
     }
 
     public ToolExecutionExecutor(AgentToolSet toolSet, ToolGuard toolGuard,
@@ -75,6 +100,26 @@ public class ToolExecutionExecutor {
         this.toolGuard = toolGuard;
         this.approvalService = approvalService;
         this.streamTracker = streamTracker;
+        this.toolTimeoutProperties = null;
+    }
+
+    private ToolExecutionExecutor(AgentToolSet toolSet, ToolGuardService toolGuardService,
+                                   ToolGuard toolGuard, ApprovalWorkflowService approvalService,
+                                   ChatStreamTracker streamTracker,
+                                   vip.mate.config.ToolTimeoutProperties toolTimeoutProperties) {
+        this.toolCallbackMap = toolSet.callbackByName();
+        this.toolGuardService = toolGuardService;
+        this.toolGuard = toolGuard;
+        this.approvalService = approvalService;
+        this.streamTracker = streamTracker;
+        this.toolTimeoutProperties = toolTimeoutProperties;
+    }
+
+    private long getToolTimeoutMs(String toolName) {
+        if (toolTimeoutProperties != null) {
+            return toolTimeoutProperties.getTimeoutSeconds(toolName) * 1000L;
+        }
+        return 5 * 60 * 1000L; // default 5 min
     }
 
     /**
@@ -211,14 +256,9 @@ public class ToolExecutionExecutor {
             log.info("[ToolExecutor] Executing pre-approved tool: {}", toolName);
             String result = callback.call(callArguments);
             int rawLen = result != null ? result.length() : 0;
-            if (result != null && result.length() > MAX_TOOL_RESULT_CHARS) {
-                int headLen = (int) (MAX_TOOL_RESULT_CHARS * 0.4);
-                int tailLen = MAX_TOOL_RESULT_CHARS - headLen - 80;
-                result = result.substring(0, headLen)
-                        + "\n\n... [结果已截断，原始 " + rawLen + " 字符] ...\n\n"
-                        + result.substring(rawLen - tailLen);
-            }
-            log.info("[ToolExecutor] Pre-approved tool {} returned {} chars", toolName, rawLen);
+            result = truncateToolResult(result, MAX_TOOL_RESULT_CHARS);
+            log.info("[ToolExecutor] Pre-approved tool {} returned {} chars{}", toolName, rawLen,
+                    result != null && result.length() < rawLen ? " (truncated to " + result.length() + ")" : "");
             events.add(GraphEventPublisher.toolComplete(toolName, result, true));
             return new ToolResponseMessage.ToolResponse(
                     toolCall.id(), toolName, result != null ? result : "");
@@ -305,7 +345,11 @@ public class ToolExecutionExecutor {
         // 等待所有并行工具完成，按原始顺序填入结果
         for (var entry : futures.entrySet()) {
             try {
-                ToolResponseMessage.ToolResponse response = entry.getValue().get(5, TimeUnit.MINUTES);
+                // 按工具名查找配置的超时时间
+                PreparedToolCall matchedPc = batch.stream()
+                        .filter(p -> p.resultIndex == entry.getKey()).findFirst().orElse(null);
+                long timeoutMs = getToolTimeoutMs(matchedPc != null ? matchedPc.toolCall.name() : null);
+                ToolResponseMessage.ToolResponse response = entry.getValue().get(timeoutMs, TimeUnit.MILLISECONDS);
                 allResponses.set(entry.getKey(), response);
             } catch (Exception e) {
                 // 超时或异常 — 填入错误响应
@@ -338,18 +382,9 @@ public class ToolExecutionExecutor {
                             ? pc.arguments.substring(0, 200) + "..." : pc.arguments);
             String result = pc.callback.call(pc.arguments);
             int rawLen = result != null ? result.length() : 0;
-            // 截断过长结果，防止 ToolResponseMessage 撑爆 LLM 上下文
-            if (result != null && result.length() > MAX_TOOL_RESULT_CHARS) {
-                int headLen = (int) (MAX_TOOL_RESULT_CHARS * 0.4);
-                int tailLen = MAX_TOOL_RESULT_CHARS - headLen - 80;
-                result = result.substring(0, headLen)
-                        + "\n\n... [结果已截断，原始 " + rawLen + " 字符，保留首尾关键片段] ...\n\n"
-                        + result.substring(rawLen - tailLen);
-                log.info("[ToolExecutor] Tool {} returned {} chars, truncated to {} chars",
-                        toolName, rawLen, result.length());
-            } else {
-                log.info("[ToolExecutor] Tool {} returned {} chars", toolName, rawLen);
-            }
+            result = truncateToolResult(result, MAX_TOOL_RESULT_CHARS);
+            log.info("[ToolExecutor] Tool {} returned {} chars{}", toolName, rawLen,
+                    result != null && result.length() < rawLen ? " (truncated to " + result.length() + ")" : "");
             events.add(GraphEventPublisher.toolComplete(toolName, result, true));
             if (streamTracker != null) {
                 streamTracker.broadcastObject(pc.conversationId, GraphEventPublisher.EVENT_TOOL_COMPLETE,

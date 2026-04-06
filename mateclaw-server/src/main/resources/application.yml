@@ -99,6 +99,12 @@ mate:
         min-rounds-for-summarize: 3
         head-ratio: 0.4
         truncation-marker: "\n\n... [内容已截断，共 %d 字符，保留前后关键片段] ...\n\n"
+    tool:
+      timeout:
+        default-timeout-seconds: 300
+        per-category:
+          shell: 120
+          web: 30
     conversation:
       window:
         # 测试时临时调低：2000 token ≈ 2000 中文字，3 轮对话即可触发压缩

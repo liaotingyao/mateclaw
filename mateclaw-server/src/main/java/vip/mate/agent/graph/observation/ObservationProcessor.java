@@ -4,6 +4,7 @@ import lombok.extern.slf4j.Slf4j;
 import vip.mate.config.GraphObservationProperties;
 
 import java.util.List;
+import java.util.regex.Pattern;
 
 /**
  * 观察结果处理器
@@ -46,10 +47,16 @@ public class ObservationProcessor {
         return String.format("[%s] %s", toolName, trimmed);
     }
 
+    /** 用于检测尾部是否包含错误信息 */
+    private static final Pattern ERROR_TAIL_PATTERN = Pattern.compile(
+            "(?i)\\b(error|exception|traceback|failed|fatal|panic|stack.?trace|errno)\\b");
+
     /**
-     * 截断大文本，保留首尾关键片段
+     * 截断大文本，保留首尾关键片段。
      * <p>
-     * 保留前 40% 和后 60% 扣除标记长度后的内容。
+     * 如果尾部 2000 字符内检测到错误模式（error, exception, traceback 等），
+     * 自动提升 tail 保留比例（默认从 0.6 → 0.8），确保错误信息不被截掉。
+     * 同时保证截断后至少保留 minKeepChars 字符。
      *
      * @param text   原始文本
      * @param maxLen 最大允许长度
@@ -60,6 +67,14 @@ public class ObservationProcessor {
             return text;
         }
 
+        // 最少保留保证
+        if (maxLen < properties.getMinKeepChars()) {
+            maxLen = properties.getMinKeepChars();
+            if (text.length() <= maxLen) {
+                return text;
+            }
+        }
+
         int originalLen = text.length();
         String marker = String.format(properties.getTruncationMarker(), originalLen);
         int available = maxLen - marker.length();
@@ -67,13 +82,23 @@ public class ObservationProcessor {
             return text.substring(0, maxLen);
         }
 
-        int headLen = (int) (available * properties.getHeadRatio());
+        // 检测尾部是否含错误信息 → 动态调整 head/tail 比例
+        double effectiveHeadRatio = properties.getHeadRatio();
+        String tailRegion = text.substring(Math.max(0, originalLen - 2000));
+        if (ERROR_TAIL_PATTERN.matcher(tailRegion).find()) {
+            effectiveHeadRatio = 1.0 - properties.getErrorTailRatio(); // 0.2（保留 80% 给 tail）
+            log.info("[Observation] Error pattern detected in tail, preserving tail (ratio={})",
+                    properties.getErrorTailRatio());
+        }
+
+        int headLen = (int) (available * effectiveHeadRatio);
         int tailLen = available - headLen;
 
         String head = text.substring(0, headLen);
         String tail = text.substring(originalLen - tailLen);
 
-        log.info("[Observation] Truncated from {} to {} chars (limit={})", originalLen, head.length() + tail.length(), maxLen);
+        log.info("[Observation] Truncated from {} to {} chars (limit={}, headRatio={})",
+                originalLen, head.length() + tail.length(), maxLen, effectiveHeadRatio);
         return head + marker + tail;
     }
 

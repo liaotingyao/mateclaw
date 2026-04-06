@@ -431,3 +431,8 @@ CREATE TABLE IF NOT EXISTS mate_memory_recall (
 CREATE INDEX IF NOT EXISTS idx_memory_recall_agent ON mate_memory_recall(agent_id);
 CREATE INDEX IF NOT EXISTS idx_memory_recall_agent_file ON mate_memory_recall(agent_id, filename);
 CREATE INDEX IF NOT EXISTS idx_memory_recall_score ON mate_memory_recall(agent_id, score);
+CREATE INDEX IF NOT EXISTS idx_memory_recall_candidates ON mate_memory_recall(agent_id, promoted, deleted);
+
+-- 补充复合索引（高频查询优化）
+CREATE INDEX IF NOT EXISTS idx_message_conv_time ON mate_message(conversation_id, create_time);
+CREATE INDEX IF NOT EXISTS idx_workspace_file_agent_enabled ON mate_workspace_file(agent_id, enabled);

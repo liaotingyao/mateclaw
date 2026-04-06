@@ -11,7 +11,7 @@ import org.springframework.web.servlet.config.annotation.WebMvcConfigurer;
  * @author MateClaw Team
  */
 @Configuration
-@EnableConfigurationProperties({GraphObservationProperties.class, ConversationWindowProperties.class})
+@EnableConfigurationProperties({GraphObservationProperties.class, ConversationWindowProperties.class, ToolTimeoutProperties.class})
 public class WebMvcConfig implements WebMvcConfigurer {
 
     @Override

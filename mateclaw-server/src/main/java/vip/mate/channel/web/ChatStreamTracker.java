@@ -91,6 +91,9 @@ public class ChatStreamTracker {
         /** 已广播的 pending approval ID 集合（用于幂等去重） */
         final java.util.Set<String> broadcastedApprovalIds = java.util.concurrent.ConcurrentHashMap.newKeySet();
 
+        /** 创建时间（用于 stale 检测和清理） */
+        final long createdAt = System.currentTimeMillis();
+
         RunState(String conversationId) {
             this.conversationId = conversationId;
         }
@@ -738,5 +741,59 @@ public class ChatStreamTracker {
         }
         sb.append("\"}");
         return sb.toString();
+    }
+
+    // ==================== Stale RunState 清理 ====================
+
+    /** 已完成的 RunState 保留时间（5 分钟） */
+    private static final long DONE_RETENTION_MS = 5 * 60 * 1000;
+    /** RunState 最大存活时间（30 分钟，防止挂起的流永远占内存） */
+    private static final long MAX_LIFETIME_MS = 30 * 60 * 1000;
+
+    /**
+     * 定期清理过期的 RunState，防止内存泄漏。
+     * - 已完成超过 5 分钟的 → 移除
+     * - 存活超过 30 分钟的（无论是否完成）→ 强制移除
+     */
+    @org.springframework.scheduling.annotation.Scheduled(fixedRate = 600_000)
+    public void cleanupStaleRuns() {
+        long now = System.currentTimeMillis();
+        int evicted = 0;
+
+        var iterator = runs.entrySet().iterator();
+        while (iterator.hasNext()) {
+            var entry = iterator.next();
+            RunState state = entry.getValue();
+            long age = now - state.createdAt;
+
+            boolean shouldEvict = false;
+            String reason = null;
+
+            if (state.done && age > DONE_RETENTION_MS) {
+                shouldEvict = true;
+                reason = "completed and expired";
+            } else if (age > MAX_LIFETIME_MS) {
+                shouldEvict = true;
+                reason = "exceeded max lifetime (" + (age / 1000) + "s)";
+            }
+
+            if (shouldEvict) {
+                // 先清理资源再移除
+                stopHeartbeat(entry.getKey());
+                Disposable d = state.disposable;
+                if (d != null && !d.isDisposed()) {
+                    d.dispose();
+                }
+                iterator.remove();
+                evicted++;
+                log.warn("[SSE] Evicted stale RunState for conversation={}: {}",
+                        entry.getKey(), reason);
+            }
+        }
+
+        if (evicted > 0) {
+            log.info("[SSE] Cleanup completed: evicted {} stale RunState entries, {} remaining",
+                    evicted, runs.size());
+        }
     }
 }

@@ -29,4 +29,10 @@ public class GraphObservationProperties {
 
     /** 截断省略标记（%d 会被替换为原始字符数） */
     private String truncationMarker = "\n\n... [内容已截断，共 %d 字符，保留前后关键片段] ...\n\n";
+
+    /** 检测到尾部错误模式时的 tail 保留比例（默认 0.8，优先保留错误信息） */
+    private double errorTailRatio = 0.8;
+
+    /** 截断时最少保留字符数（避免过度截断导致信息完全丢失） */
+    private int minKeepChars = 2000;
 }
