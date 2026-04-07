@@ -68,9 +68,10 @@ public class MemoryEmergenceService {
             return;
         }
 
-        // 2. 读取 daily notes 内容
+        // 2. 批量读取 daily notes 内容（避免 N+1 查询）
         StringBuilder dailyNotesBuilder = new StringBuilder();
         for (String filename : dailyFilenames) {
+            // TODO: 未来可优化为 IN 批量查询，当前 listFiles() 会清除 content 字段
             WorkspaceFileEntity file = workspaceFileService.getFile(agentId, filename);
             if (file != null && file.getContent() != null && !file.getContent().isBlank()) {
                 dailyNotesBuilder.append("### ").append(filename).append("\n");
@@ -221,11 +222,14 @@ public class MemoryEmergenceService {
             // 防止无限膨胀：超过 20KB 时截断，只保留最近的内容
             if (newContent.length() > 20_000) {
                 int cutPoint = newContent.length() - 16_000;
-                // 找到下一个 "## " 标记作为安全截断点
                 int safePoint = newContent.indexOf("\n## ", cutPoint);
                 if (safePoint > 0) {
                     newContent = "# Dreaming 整合日记\n\n> 早期记录已归档\n\n"
                             + newContent.substring(safePoint + 1);
+                } else {
+                    // 没找到 ## 标记，硬截断保留最后 16KB
+                    newContent = "# Dreaming 整合日记\n\n> 早期记录已归档\n\n"
+                            + newContent.substring(cutPoint);
                 }
             }
 

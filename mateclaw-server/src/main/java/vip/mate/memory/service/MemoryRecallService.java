@@ -94,9 +94,28 @@ public class MemoryRecallService {
 
                 recallMapper.insert(entity);
             } catch (org.springframework.dao.DuplicateKeyException e) {
-                // 并发插入冲突，退化为更新
-                log.debug("[MemoryRecall] Concurrent insert for {}, retrying as update", filename);
-                recordRecall(agentId, filename, snippetText, userQueryHash);
+                // 并发插入冲突，重新查询后更新（不递归，避免 StackOverflow）
+                log.debug("[MemoryRecall] Concurrent insert for {}, falling back to update", filename);
+                MemoryRecallEntity retry = recallMapper.selectOne(
+                        new LambdaQueryWrapper<MemoryRecallEntity>()
+                                .eq(MemoryRecallEntity::getAgentId, agentId)
+                                .eq(MemoryRecallEntity::getFilename, filename)
+                                .eq(MemoryRecallEntity::getDeleted, 0)
+                                .last("LIMIT 1"));
+                if (retry != null) {
+                    retry.setRecallCount(retry.getRecallCount() + 1);
+                    retry.setDailyCount(retry.getDailyCount() + 1);
+                    retry.setLastRecalledAt(now);
+                    retry.setSnippetPreview(preview);
+                    if (userQueryHash != null) {
+                        List<String> hashes = parseQueryHashes(retry.getQueryHashes());
+                        if (!hashes.contains(userQueryHash) && hashes.size() < MAX_QUERY_HASHES) {
+                            hashes.add(userQueryHash);
+                        }
+                        retry.setQueryHashes(toJson(hashes));
+                    }
+                    recallMapper.updateById(retry);
+                }
             }
         }
     }
@@ -263,7 +282,10 @@ public class MemoryRecallService {
             item.put("score", c.getScore());
             item.put("recallCount", c.getRecallCount());
             item.put("dailyCount", c.getDailyCount());
-            item.put("queryCount", parseQueryHashes(c.getQueryHashes()).size());
+            // 避免 JSON 反序列化：直接数逗号估算 hash 数量（"[\"a\",\"b\"]" 有 1 个逗号 = 2 个元素）
+            String qh = c.getQueryHashes();
+            int queryCount = (qh == null || qh.length() <= 2) ? 0 : qh.split(",").length;
+            item.put("queryCount", queryCount);
             item.put("promoted", c.getPromoted());
             item.put("lastRecalledAt", c.getLastRecalledAt());
             item.put("snippetPreview", c.getSnippetPreview());
