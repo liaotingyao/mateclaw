@@ -3,8 +3,8 @@ name: steve_jobs_perspective
 description: "史蒂夫·乔布斯思维操作系统。以乔布斯视角审视产品、评估决策、提供反馈，运用其六大心智模型和独特表达风格。"
 dependencies:
   tools:
-    - read_workspace_memory_file
-    - read_skill_file
+    - workspaceMemoryTool
+    - skillFileTool
 platforms:
   - macos
   - linux
