@@ -9,9 +9,10 @@ import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Component;
 
 /**
- * Memory 模块 Schema 迁移
+ * Memory 模块增量 Schema 迁移
  * <p>
- * 确保 mate_memory_recall 表存在（兼容已有部署）。
+ * 基础表 mate_memory_recall 已在 schema.sql / schema-mysql.sql 中定义。
+ * 本类仅负责增量索引/字段迁移，确保从旧版本升级时自动补齐。
  *
  * @author MateClaw Team
  */
@@ -25,31 +26,16 @@ public class MemorySchemaMigration implements ApplicationRunner {
 
     @Override
     public void run(ApplicationArguments args) {
+        // 增量索引补齐（v1.1 新增的复合索引，旧版本可能没有）
+        safeExecute("CREATE INDEX IF NOT EXISTS idx_memory_recall_candidates ON mate_memory_recall(agent_id, promoted, deleted)");
+        log.debug("[MemorySchemaMigration] Incremental migration completed");
+    }
+
+    private void safeExecute(String sql) {
         try {
-            jdbcTemplate.execute("""
-                    CREATE TABLE IF NOT EXISTS mate_memory_recall (
-                        id                BIGINT       NOT NULL PRIMARY KEY,
-                        agent_id          BIGINT       NOT NULL,
-                        filename          VARCHAR(256) NOT NULL,
-                        snippet_hash      VARCHAR(64),
-                        snippet_preview   VARCHAR(512),
-                        recall_count      INT          NOT NULL DEFAULT 0,
-                        daily_count       INT          NOT NULL DEFAULT 0,
-                        query_hashes      TEXT,
-                        score             DOUBLE       NOT NULL DEFAULT 0.0,
-                        last_recalled_at  DATETIME,
-                        promoted          BOOLEAN      NOT NULL DEFAULT FALSE,
-                        create_time       DATETIME     NOT NULL,
-                        update_time       DATETIME     NOT NULL,
-                        deleted           INT          NOT NULL DEFAULT 0
-                    )
-                    """);
-            jdbcTemplate.execute("CREATE INDEX IF NOT EXISTS idx_memory_recall_agent ON mate_memory_recall(agent_id)");
-            jdbcTemplate.execute("CREATE INDEX IF NOT EXISTS idx_memory_recall_agent_file ON mate_memory_recall(agent_id, filename)");
-            jdbcTemplate.execute("CREATE INDEX IF NOT EXISTS idx_memory_recall_score ON mate_memory_recall(agent_id, score)");
-            log.info("[MemorySchemaMigration] mate_memory_recall schema migration completed");
+            jdbcTemplate.execute(sql);
         } catch (Exception e) {
-            log.warn("[MemorySchemaMigration] Migration failed (table may already exist): {}", e.getMessage());
+            log.debug("[MemorySchemaMigration] Migration skipped (may already exist): {}", e.getMessage());
         }
     }
 }

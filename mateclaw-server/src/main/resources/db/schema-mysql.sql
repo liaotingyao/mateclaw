@@ -374,3 +374,127 @@ CREATE TABLE IF NOT EXISTS mate_tool_guard_audit_log (
     INDEX idx_guard_audit_conv (conversation_id),
     INDEX idx_guard_audit_time (create_time)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- ==================== 外部数据源 ====================
+
+CREATE TABLE IF NOT EXISTS mate_datasource (
+    id              BIGINT       NOT NULL PRIMARY KEY,
+    name            VARCHAR(128) NOT NULL,
+    description     VARCHAR(512),
+    db_type         VARCHAR(32)  NOT NULL,
+    host            VARCHAR(256) NOT NULL,
+    port            INT          NOT NULL,
+    database_name   VARCHAR(128) NOT NULL,
+    username        VARCHAR(128),
+    password        VARCHAR(512),
+    extra_params    VARCHAR(512),
+    schema_name     VARCHAR(128),
+    enabled         TINYINT(1)   NOT NULL DEFAULT 1,
+    last_test_time  DATETIME,
+    last_test_ok    TINYINT(1),
+    create_time     DATETIME     NOT NULL,
+    update_time     DATETIME     NOT NULL,
+    deleted         INT          NOT NULL DEFAULT 0
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- ==================== 异步任务（视频/图片生成等长耗时操作） ====================
+
+CREATE TABLE IF NOT EXISTS mate_async_task (
+    id               BIGINT        NOT NULL PRIMARY KEY,
+    task_id          VARCHAR(64)   NOT NULL,
+    task_type        VARCHAR(32)   NOT NULL,
+    status           VARCHAR(16)   NOT NULL DEFAULT 'pending',
+    conversation_id  VARCHAR(128),
+    message_id       BIGINT,
+    provider_name    VARCHAR(64),
+    provider_task_id VARCHAR(128),
+    request_json     TEXT,
+    result_json      TEXT,
+    error_message    VARCHAR(512),
+    progress         INT           DEFAULT 0,
+    created_by       VARCHAR(64),
+    create_time      DATETIME      NOT NULL,
+    update_time      DATETIME      NOT NULL,
+    UNIQUE KEY uk_async_task_taskid (task_id),
+    INDEX idx_async_task_conv (conversation_id),
+    INDEX idx_async_task_status (status)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- ==================== 记忆召回追踪 ====================
+
+CREATE TABLE IF NOT EXISTS mate_memory_recall (
+    id                BIGINT       NOT NULL PRIMARY KEY,
+    agent_id          BIGINT       NOT NULL,
+    filename          VARCHAR(256) NOT NULL,
+    snippet_hash      VARCHAR(64),
+    snippet_preview   VARCHAR(512),
+    recall_count      INT          NOT NULL DEFAULT 0,
+    daily_count       INT          NOT NULL DEFAULT 0,
+    query_hashes      TEXT,
+    score             DOUBLE       NOT NULL DEFAULT 0.0,
+    last_recalled_at  DATETIME,
+    promoted          TINYINT(1)   NOT NULL DEFAULT 0,
+    create_time       DATETIME     NOT NULL,
+    update_time       DATETIME     NOT NULL,
+    deleted           INT          NOT NULL DEFAULT 0,
+    INDEX idx_memory_recall_agent (agent_id),
+    INDEX idx_memory_recall_agent_file (agent_id, filename),
+    INDEX idx_memory_recall_score (agent_id, score),
+    INDEX idx_memory_recall_candidates (agent_id, promoted, deleted)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- ==================== Wiki 知识库 ====================
+
+CREATE TABLE IF NOT EXISTS mate_wiki_knowledge_base (
+    id               BIGINT       NOT NULL PRIMARY KEY,
+    name             VARCHAR(128) NOT NULL,
+    description      TEXT,
+    agent_id         BIGINT,
+    config_content   LONGTEXT,
+    source_directory VARCHAR(512),
+    status           VARCHAR(32)  NOT NULL DEFAULT 'active',
+    page_count       INT          NOT NULL DEFAULT 0,
+    raw_count        INT          NOT NULL DEFAULT 0,
+    create_time      DATETIME     NOT NULL,
+    update_time      DATETIME     NOT NULL,
+    deleted          INT          NOT NULL DEFAULT 0,
+    INDEX idx_wiki_kb_agent (agent_id)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+CREATE TABLE IF NOT EXISTS mate_wiki_raw_material (
+    id                BIGINT       NOT NULL PRIMARY KEY,
+    kb_id             BIGINT       NOT NULL,
+    title             VARCHAR(256) NOT NULL,
+    source_type       VARCHAR(32)  NOT NULL DEFAULT 'text',
+    source_path       VARCHAR(512),
+    original_content  LONGTEXT,
+    extracted_text    LONGTEXT,
+    content_hash      VARCHAR(64),
+    file_size         BIGINT       NOT NULL DEFAULT 0,
+    processing_status VARCHAR(32)  NOT NULL DEFAULT 'pending',
+    last_processed_at DATETIME,
+    error_message     VARCHAR(512),
+    create_time       DATETIME     NOT NULL,
+    update_time       DATETIME     NOT NULL,
+    deleted           INT          NOT NULL DEFAULT 0,
+    INDEX idx_wiki_raw_kb (kb_id),
+    INDEX idx_wiki_raw_status (kb_id, processing_status)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+CREATE TABLE IF NOT EXISTS mate_wiki_page (
+    id              BIGINT       NOT NULL PRIMARY KEY,
+    kb_id           BIGINT       NOT NULL,
+    slug            VARCHAR(256) NOT NULL,
+    title           VARCHAR(256) NOT NULL,
+    content         LONGTEXT,
+    summary         VARCHAR(1024),
+    outgoing_links  LONGTEXT,
+    source_raw_ids  LONGTEXT,
+    version         INT          NOT NULL DEFAULT 1,
+    last_updated_by VARCHAR(32)  NOT NULL DEFAULT 'ai',
+    create_time     DATETIME     NOT NULL,
+    update_time     DATETIME     NOT NULL,
+    deleted         INT          NOT NULL DEFAULT 0,
+    UNIQUE KEY uk_wiki_page_kb_slug (kb_id, slug),
+    INDEX idx_wiki_page_kb (kb_id)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;

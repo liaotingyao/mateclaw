@@ -374,6 +374,18 @@ INSERT INTO mate_tool (id, name, display_name, description, tool_type, bean_name
 VALUES (1000000014, 'DelegateAgentTool', 'Agent Delegation', 'Delegate tasks to other Agents for multi-agent collaboration. Call target Agent by name, run in isolated session and return result.', 'builtin', 'delegateAgentTool', '🤝', TRUE, TRUE, NOW(), NOW(), 0)
 ON DUPLICATE KEY UPDATE name=VALUES(name), display_name=VALUES(display_name), description=VALUES(description), tool_type=VALUES(tool_type), bean_name=VALUES(bean_name), icon=VALUES(icon), enabled=VALUES(enabled), builtin=VALUES(builtin), update_time=VALUES(update_time), deleted=VALUES(deleted);
 
+INSERT INTO mate_tool (id, name, display_name, description, tool_type, bean_name, icon, enabled, builtin, create_time, update_time, deleted)
+VALUES (1000000015, 'VideoGenerateTool', 'Video Generation', 'Generate videos using AI. Supports text-to-video and image-to-video modes. Video generation is asynchronous and will appear in conversation when complete.', 'builtin', 'videoGenerateTool', '🎬', TRUE, TRUE, NOW(), NOW(), 0)
+ON DUPLICATE KEY UPDATE name=VALUES(name), display_name=VALUES(display_name), description=VALUES(description), tool_type=VALUES(tool_type), bean_name=VALUES(bean_name), icon=VALUES(icon), enabled=VALUES(enabled), builtin=VALUES(builtin), update_time=VALUES(update_time), deleted=VALUES(deleted);
+
+INSERT INTO mate_tool (id, name, display_name, description, tool_type, bean_name, icon, enabled, builtin, create_time, update_time, deleted)
+VALUES (1000000016, 'ImageGenerateTool', 'Image Generation', 'Generate images using AI. Supports text-to-image mode with multiple providers: DashScope, OpenAI DALL-E, fal.ai Flux, Zhipu CogView. Auto-fallback between providers.', 'builtin', 'imageGenerateTool', '🎨', TRUE, TRUE, NOW(), NOW(), 0)
+ON DUPLICATE KEY UPDATE name=VALUES(name), display_name=VALUES(display_name), description=VALUES(description), tool_type=VALUES(tool_type), bean_name=VALUES(bean_name), icon=VALUES(icon), enabled=VALUES(enabled), builtin=VALUES(builtin), update_time=VALUES(update_time), deleted=VALUES(deleted);
+
+INSERT INTO mate_tool (id, name, display_name, description, tool_type, bean_name, icon, enabled, builtin, create_time, update_time, deleted)
+VALUES (1000000017, 'WikiTool', 'Wiki Knowledge Base', 'Read, search, and trace sources in Wiki knowledge bases. Supports wiki_read_page, wiki_list_pages, wiki_search_pages, wiki_trace_source.', 'builtin', 'wikiTool', '📚', TRUE, TRUE, NOW(), NOW(), 0)
+ON DUPLICATE KEY UPDATE name=VALUES(name), display_name=VALUES(display_name), description=VALUES(description), tool_type=VALUES(tool_type), bean_name=VALUES(bean_name), icon=VALUES(icon), enabled=VALUES(enabled), builtin=VALUES(builtin), update_time=VALUES(update_time), deleted=VALUES(deleted);
+
 -- Example MCP Server: Filesystem (see MateClaw docs mcpServers.filesystem)
 INSERT INTO mate_mcp_server (id, name, description, transport, url, headers_json, command, args_json, env_json, cwd,
     enabled, connect_timeout_seconds, read_timeout_seconds, last_status, last_error,
@@ -485,6 +497,10 @@ ON DUPLICATE KEY UPDATE name=VALUES(name), description=VALUES(description), skil
 
 INSERT INTO mate_skill (id, name, description, skill_type, icon, version, author, config_json, enabled, builtin, tags, create_time, update_time, deleted)
 VALUES (1000000013, 'mateclaw_source_index', 'Map user questions to MateClaw doc paths and source code entry points to reduce blind searching.', 'builtin', '🗂️', '1.0.0', 'MateClaw', '{"upstream":"mateclaw","entryFile":"SKILL.md"}', TRUE, TRUE, 'docs,index,source,qa', NOW(), NOW(), 0)
+ON DUPLICATE KEY UPDATE name=VALUES(name), description=VALUES(description), skill_type=VALUES(skill_type), icon=VALUES(icon), version=VALUES(version), author=VALUES(author), config_json=VALUES(config_json), enabled=VALUES(enabled), builtin=VALUES(builtin), tags=VALUES(tags), update_time=VALUES(update_time), deleted=VALUES(deleted);
+
+INSERT INTO mate_skill (id, name, description, skill_type, icon, version, author, config_json, enabled, builtin, tags, create_time, update_time, deleted)
+VALUES (1000000014, 'sql_query', 'Query databases using natural language. Discover schemas, generate SQL, and execute read-only queries against configured external datasources.', 'builtin', '📊', '1.0.0', 'MateClaw', '{"upstream":"mateclaw","entryFile":"SKILL.md"}', TRUE, TRUE, 'sql,database,query,data', NOW(), NOW(), 0)
 ON DUPLICATE KEY UPDATE name=VALUES(name), description=VALUES(description), skill_type=VALUES(skill_type), icon=VALUES(icon), version=VALUES(version), author=VALUES(author), config_json=VALUES(config_json), enabled=VALUES(enabled), builtin=VALUES(builtin), tags=VALUES(tags), update_time=VALUES(update_time), deleted=VALUES(deleted);
 
 INSERT INTO mate_skill (id, name, description, skill_type, icon, version, author, config_json, enabled, builtin, tags, create_time, update_time, deleted)

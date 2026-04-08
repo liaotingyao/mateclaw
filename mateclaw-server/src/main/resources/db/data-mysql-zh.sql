@@ -374,6 +374,18 @@ INSERT INTO mate_tool (id, name, display_name, description, tool_type, bean_name
 VALUES (1000000014, 'DelegateAgentTool', 'Agent 委派', '委派任务给其他 Agent 执行，实现多 Agent 协作。支持按名称调用目标 Agent，在独立会话中运行并返回结果。', 'builtin', 'delegateAgentTool', '🤝', TRUE, TRUE, NOW(), NOW(), 0)
 ON DUPLICATE KEY UPDATE name=VALUES(name), display_name=VALUES(display_name), description=VALUES(description), tool_type=VALUES(tool_type), bean_name=VALUES(bean_name), icon=VALUES(icon), enabled=VALUES(enabled), builtin=VALUES(builtin), update_time=VALUES(update_time), deleted=VALUES(deleted);
 
+INSERT INTO mate_tool (id, name, display_name, description, tool_type, bean_name, icon, enabled, builtin, create_time, update_time, deleted)
+VALUES (1000000015, 'VideoGenerateTool', '视频生成', '使用 AI 生成视频，支持文字生成视频和图片生成视频两种模式。视频生成是异步过程，完成后自动显示在对话中。', 'builtin', 'videoGenerateTool', '🎬', TRUE, TRUE, NOW(), NOW(), 0)
+ON DUPLICATE KEY UPDATE name=VALUES(name), display_name=VALUES(display_name), description=VALUES(description), tool_type=VALUES(tool_type), bean_name=VALUES(bean_name), icon=VALUES(icon), enabled=VALUES(enabled), builtin=VALUES(builtin), update_time=VALUES(update_time), deleted=VALUES(deleted);
+
+INSERT INTO mate_tool (id, name, display_name, description, tool_type, bean_name, icon, enabled, builtin, create_time, update_time, deleted)
+VALUES (1000000016, 'ImageGenerateTool', '图片生成', '使用 AI 生成图片，支持文字生成图片。支持 DashScope 通义万相、OpenAI DALL-E、fal.ai Flux、智谱 CogView 等多个 Provider，自动回退。', 'builtin', 'imageGenerateTool', '🎨', TRUE, TRUE, NOW(), NOW(), 0)
+ON DUPLICATE KEY UPDATE name=VALUES(name), display_name=VALUES(display_name), description=VALUES(description), tool_type=VALUES(tool_type), bean_name=VALUES(bean_name), icon=VALUES(icon), enabled=VALUES(enabled), builtin=VALUES(builtin), update_time=VALUES(update_time), deleted=VALUES(deleted);
+
+INSERT INTO mate_tool (id, name, display_name, description, tool_type, bean_name, icon, enabled, builtin, create_time, update_time, deleted)
+VALUES (1000000017, 'WikiTool', 'Wiki 知识库', '读取、搜索 Wiki 知识库中的结构化页面，并追溯原始来源文件。支持 wiki_read_page、wiki_list_pages、wiki_search_pages、wiki_trace_source 四个工具。', 'builtin', 'wikiTool', '📚', TRUE, TRUE, NOW(), NOW(), 0)
+ON DUPLICATE KEY UPDATE name=VALUES(name), display_name=VALUES(display_name), description=VALUES(description), tool_type=VALUES(tool_type), bean_name=VALUES(bean_name), icon=VALUES(icon), enabled=VALUES(enabled), builtin=VALUES(builtin), update_time=VALUES(update_time), deleted=VALUES(deleted);
+
 -- 示例 MCP Server：Filesystem（参考 MateClaw 文档中的 mcpServers.filesystem）
 INSERT INTO mate_mcp_server (
     id, name, description, transport, url, headers_json, command, args_json, env_json, cwd,
@@ -487,6 +499,10 @@ ON DUPLICATE KEY UPDATE name=VALUES(name), description=VALUES(description), skil
 
 INSERT INTO mate_skill (id, name, description, skill_type, icon, version, author, config_json, enabled, builtin, tags, create_time, update_time, deleted)
 VALUES (1000000013, 'mateclaw_source_index', '将用户问题映射到 MateClaw 文档路径与源码入口，减少盲目搜索。', 'builtin', '🗂️', '1.0.0', 'MateClaw', '{"upstream":"mateclaw","entryFile":"SKILL.md"}', TRUE, TRUE, 'docs,index,source,qa', NOW(), NOW(), 0)
+ON DUPLICATE KEY UPDATE name=VALUES(name), description=VALUES(description), skill_type=VALUES(skill_type), icon=VALUES(icon), version=VALUES(version), author=VALUES(author), config_json=VALUES(config_json), enabled=VALUES(enabled), builtin=VALUES(builtin), tags=VALUES(tags), update_time=VALUES(update_time), deleted=VALUES(deleted);
+
+INSERT INTO mate_skill (id, name, description, skill_type, icon, version, author, config_json, enabled, builtin, tags, create_time, update_time, deleted)
+VALUES (1000000014, 'sql_query', '使用自然语言查询数据库。发现表结构、生成 SQL、在已配置的外部数据源上执行只读查询。', 'builtin', '📊', '1.0.0', 'MateClaw', '{"upstream":"mateclaw","entryFile":"SKILL.md"}', TRUE, TRUE, 'sql,database,query,data', NOW(), NOW(), 0)
 ON DUPLICATE KEY UPDATE name=VALUES(name), description=VALUES(description), skill_type=VALUES(skill_type), icon=VALUES(icon), version=VALUES(version), author=VALUES(author), config_json=VALUES(config_json), enabled=VALUES(enabled), builtin=VALUES(builtin), tags=VALUES(tags), update_time=VALUES(update_time), deleted=VALUES(deleted);
 
 INSERT INTO mate_skill (id, name, description, skill_type, icon, version, author, config_json, enabled, builtin, tags, create_time, update_time, deleted)

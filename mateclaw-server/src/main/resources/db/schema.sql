@@ -470,3 +470,59 @@ CREATE TABLE IF NOT EXISTS mate_async_task (
 CREATE INDEX IF NOT EXISTS idx_async_task_taskid ON mate_async_task(task_id);
 CREATE INDEX IF NOT EXISTS idx_async_task_conv ON mate_async_task(conversation_id);
 CREATE INDEX IF NOT EXISTS idx_async_task_status ON mate_async_task(status);
+
+-- ==================== Wiki 知识库 ====================
+
+CREATE TABLE IF NOT EXISTS mate_wiki_knowledge_base (
+    id               BIGINT       NOT NULL PRIMARY KEY,
+    name             VARCHAR(128) NOT NULL,
+    description      TEXT,
+    agent_id         BIGINT,
+    config_content   CLOB,
+    source_directory VARCHAR(512),
+    status           VARCHAR(32)  NOT NULL DEFAULT 'active',
+    page_count       INT          NOT NULL DEFAULT 0,
+    raw_count        INT          NOT NULL DEFAULT 0,
+    create_time      DATETIME     NOT NULL,
+    update_time      DATETIME     NOT NULL,
+    deleted          INT          NOT NULL DEFAULT 0
+);
+CREATE INDEX IF NOT EXISTS idx_wiki_kb_agent ON mate_wiki_knowledge_base(agent_id);
+
+CREATE TABLE IF NOT EXISTS mate_wiki_raw_material (
+    id                BIGINT       NOT NULL PRIMARY KEY,
+    kb_id             BIGINT       NOT NULL,
+    title             VARCHAR(256) NOT NULL,
+    source_type       VARCHAR(32)  NOT NULL DEFAULT 'text',
+    source_path       VARCHAR(512),
+    original_content  CLOB,
+    extracted_text    CLOB,
+    content_hash      VARCHAR(64),
+    file_size         BIGINT       NOT NULL DEFAULT 0,
+    processing_status VARCHAR(32)  NOT NULL DEFAULT 'pending',
+    last_processed_at DATETIME,
+    error_message     VARCHAR(512),
+    create_time       DATETIME     NOT NULL,
+    update_time       DATETIME     NOT NULL,
+    deleted           INT          NOT NULL DEFAULT 0
+);
+CREATE INDEX IF NOT EXISTS idx_wiki_raw_kb ON mate_wiki_raw_material(kb_id);
+CREATE INDEX IF NOT EXISTS idx_wiki_raw_status ON mate_wiki_raw_material(kb_id, processing_status);
+
+CREATE TABLE IF NOT EXISTS mate_wiki_page (
+    id              BIGINT       NOT NULL PRIMARY KEY,
+    kb_id           BIGINT       NOT NULL,
+    slug            VARCHAR(256) NOT NULL,
+    title           VARCHAR(256) NOT NULL,
+    content         CLOB,
+    summary         VARCHAR(1024),
+    outgoing_links  CLOB,
+    source_raw_ids  CLOB,
+    version         INT          NOT NULL DEFAULT 1,
+    last_updated_by VARCHAR(32)  NOT NULL DEFAULT 'ai',
+    create_time     DATETIME     NOT NULL,
+    update_time     DATETIME     NOT NULL,
+    deleted         INT          NOT NULL DEFAULT 0,
+    CONSTRAINT uk_wiki_page_kb_slug UNIQUE (kb_id, slug)
+);
+CREATE INDEX IF NOT EXISTS idx_wiki_page_kb ON mate_wiki_page(kb_id);

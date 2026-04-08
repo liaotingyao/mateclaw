@@ -381,6 +381,10 @@ MERGE INTO mate_tool (id, name, display_name, description, tool_type, bean_name,
 KEY (id)
 VALUES (1000000016, 'ImageGenerateTool', 'Image Generation', 'Generate images using AI. Supports text-to-image mode with multiple providers: DashScope, OpenAI DALL-E, fal.ai Flux, Zhipu CogView. Auto-fallback between providers.', 'builtin', 'imageGenerateTool', '🎨', TRUE, TRUE, NOW(), NOW(), 0);
 
+MERGE INTO mate_tool (id, name, display_name, description, tool_type, bean_name, icon, enabled, builtin, create_time, update_time, deleted)
+KEY (id)
+VALUES (1000000017, 'WikiTool', 'Wiki Knowledge Base', 'Read, search, and trace sources in Wiki knowledge bases. Supports wiki_read_page, wiki_list_pages, wiki_search_pages, wiki_trace_source.', 'builtin', 'wikiTool', '📚', TRUE, TRUE, NOW(), NOW(), 0);
+
 -- Example MCP Server: Filesystem (see MateClaw docs mcpServers.filesystem)
 MERGE INTO mate_mcp_server (
     id, name, description, transport, url, headers_json, command, args_json, env_json, cwd,
