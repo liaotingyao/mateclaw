@@ -82,6 +82,12 @@ export const agentApi = {
   getState: (id: string | number) => http.get(`/agents/${id}/state`),
 }
 
+// ==================== Templates ====================
+export const templateApi = {
+  list: () => http.get('/templates'),
+  apply: (id: string) => http.post(`/templates/${id}/apply`),
+}
+
 // ==================== Chat ====================
 export const chatApi = {
   uploadFile: async (conversationId: string, file: File) => {

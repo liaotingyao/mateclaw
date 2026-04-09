@@ -33,6 +33,11 @@ export default {
     disable: 'Disable',
   },
   chat: {
+    status: {
+      idle: 'Ready',
+      streaming: 'Generating...',
+      error: 'Disconnected',
+    },
     thinking: 'Thinking',
     stopped: 'Generation stopped',
     failed: 'Generation failed',
@@ -579,6 +584,12 @@ export default {
     title: 'Agent Management',
     desc: 'Create, edit, and manage your AI agents',
     newAgent: 'New Agent',
+    templates: {
+      title: 'Choose a Template',
+      desc: 'Start with a pre-configured agent, or create from scratch.',
+      skip: 'Start from Scratch',
+      applied: 'Agent created from template',
+    },
     search: 'Search agents...',
     tabs: {
       all: 'All',
@@ -1507,11 +1518,18 @@ export default {
   },
   dashboard: {
     title: 'Dashboard',
+    kicker: 'Operations Pulse',
     desc: 'System usage overview and runtime status',
     conversations: 'Conversations',
     messages: 'Messages',
     tokens: 'Token Usage',
     toolCalls: 'Tool Calls',
+    periodDesc: 'A sharper view of how your system behaves across short, medium, and monthly horizons.',
+    runsDesc: 'Execution history with timing, cost, and outcome at a glance.',
+    trend: {
+      title: '7-Day Trend',
+      subtitle: 'Messages and token consumption over the past week.',
+    },
     periodComparison: 'Period Comparison',
     periods: {
       today: 'Today',

@@ -33,6 +33,11 @@ export default {
     disable: '停用',
   },
   chat: {
+    status: {
+      idle: '就绪',
+      streaming: '生成中...',
+      error: '连接断开',
+    },
     thinking: '深度思考',
     stopped: '已停止生成',
     failed: '生成失败',
@@ -579,6 +584,12 @@ export default {
     title: '智能体管理',
     desc: '创建、编辑和管理你的 AI 智能体',
     newAgent: '新建智能体',
+    templates: {
+      title: '选择模板',
+      desc: '选择预配置的 Agent 模板快速开始，或从空白创建。',
+      skip: '从空白开始',
+      applied: '已从模板创建 Agent',
+    },
     search: '搜索智能体...',
     tabs: {
       all: '全部',
@@ -1517,11 +1528,18 @@ export default {
   },
   dashboard: {
     title: '仪表盘',
+    kicker: '运营脉搏',
     desc: '系统用量概览与运行状态',
     conversations: '对话数',
     messages: '消息数',
     tokens: 'Token 消耗',
     toolCalls: '工具调用',
+    periodDesc: '从日、周、月三个维度观察系统运行状况。',
+    runsDesc: '定时任务执行记录，包含耗时、消耗和结果。',
+    trend: {
+      title: '7 天趋势',
+      subtitle: '过去一周的消息量和 Token 消耗趋势。',
+    },
     periodComparison: '周期对比',
     periods: {
       today: '今日',

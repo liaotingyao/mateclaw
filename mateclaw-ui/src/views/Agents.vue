@@ -107,6 +107,49 @@
     </div>
     
 
+    <!-- Template Selector Modal -->
+    <div v-if="showTemplateSelector" class="modal-overlay" @click.self="showTemplateSelector = false">
+      <div class="modal template-modal">
+        <div class="modal-header">
+          <h2>{{ t('agents.templates.title') }}</h2>
+          <button class="modal-close" @click="showTemplateSelector = false">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/>
+            </svg>
+          </button>
+        </div>
+        <div class="modal-body">
+          <p class="template-desc">{{ t('agents.templates.desc') }}</p>
+          <div class="template-grid">
+            <div
+              v-for="tpl in templates"
+              :key="tpl.id"
+              class="template-card mc-surface-card"
+              :class="{ applying: applyingTemplate }"
+              @click="!applyingTemplate && applyTemplate(tpl.id)"
+            >
+              <div class="template-icon">{{ tpl.icon }}</div>
+              <div class="template-info">
+                <h4 class="template-name">{{ $i18n.locale === 'zh-CN' && tpl.nameZh ? tpl.nameZh : tpl.name }}</h4>
+                <p class="template-detail">{{ $i18n.locale === 'zh-CN' && tpl.descriptionZh ? tpl.descriptionZh : tpl.description }}</p>
+              </div>
+              <div class="template-tags">
+                <span v-for="tag in (tpl.tags || '').split(',').filter(Boolean)" :key="tag" class="tag-chip">{{ tag.trim() }}</span>
+              </div>
+            </div>
+          </div>
+        </div>
+        <div class="modal-footer">
+          <button class="btn-secondary" @click="openBlankCreateModal">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/>
+            </svg>
+            {{ t('agents.templates.skip') }}
+          </button>
+        </div>
+      </div>
+    </div>
+
     <!-- Create/Edit Modal -->
     <div v-if="showModal" class="modal-overlay" @click.self="closeModal">
       <div class="modal">
@@ -235,7 +278,7 @@
 import { ref, computed, onMounted } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { ElMessage, ElMessageBox } from 'element-plus'
-import { agentApi, agentBindingApi, skillApi, toolApi } from '@/api/index'
+import { agentApi, agentBindingApi, skillApi, toolApi, templateApi } from '@/api/index'
 import type { Agent } from '@/types/index'
 
 const { t } = useI18n()
@@ -251,6 +294,11 @@ const availableSkills = ref<any[]>([])
 const availableTools = ref<any[]>([])
 const selectedSkillIds = ref<number[]>([])
 const selectedToolNames = ref<string[]>([])
+
+// Template selector state
+const showTemplateSelector = ref(false)
+const templates = ref<any[]>([])
+const applyingTemplate = ref(false)
 
 const filterTabs = [
   { key: 'agents.tabs.all', value: 'all' },
@@ -315,12 +363,43 @@ function formatTime(time?: string): string {
 }
 
 function openCreateModal() {
+  // Show template selector first
+  showTemplateSelector.value = true
+  loadTemplates()
+}
+
+function openBlankCreateModal() {
+  showTemplateSelector.value = false
   editingAgent.value = null
   form.value = defaultForm()
   modalTab.value = 'basic'
   selectedSkillIds.value = []
   selectedToolNames.value = []
   showModal.value = true
+}
+
+async function loadTemplates() {
+  try {
+    const res: any = await templateApi.list()
+    templates.value = res.data || []
+  } catch {
+    // Fallback: skip templates, open blank form
+    openBlankCreateModal()
+  }
+}
+
+async function applyTemplate(id: string) {
+  applyingTemplate.value = true
+  try {
+    await templateApi.apply(id)
+    ElMessage.success(t('agents.templates.applied'))
+    showTemplateSelector.value = false
+    await loadAgents()
+  } catch {
+    ElMessage.error(t('agents.messages.saveFailed'))
+  } finally {
+    applyingTemplate.value = false
+  }
 }
 
 async function openEditModal(agent: Agent) {
@@ -551,4 +630,26 @@ async function toggleAgent(agent: Agent) {
     max-width: none;
   }
 }
+
+/* Template Selector */
+.template-modal { max-width: 640px; }
+.template-desc { font-size: 14px; color: var(--mc-text-secondary); margin: 0 0 18px; }
+
+.template-grid { display: flex; flex-direction: column; gap: 10px; }
+
+.template-card {
+  display: flex; align-items: flex-start; gap: 14px; padding: 16px; cursor: pointer;
+  border: 1px solid var(--mc-border); border-radius: 12px; transition: all 0.15s;
+}
+.template-card:hover { border-color: var(--mc-primary); background: var(--mc-primary-bg); }
+.template-card.applying { opacity: 0.5; pointer-events: none; }
+
+.template-icon { font-size: 28px; width: 44px; height: 44px; display: flex; align-items: center; justify-content: center; background: var(--mc-bg-muted); border-radius: 10px; flex-shrink: 0; }
+
+.template-info { flex: 1; min-width: 0; }
+.template-name { font-size: 15px; font-weight: 600; color: var(--mc-text-primary); margin: 0 0 4px; }
+.template-detail { font-size: 13px; color: var(--mc-text-secondary); margin: 0; line-height: 1.5; }
+
+.template-tags { display: flex; flex-wrap: wrap; gap: 4px; align-self: flex-start; margin-top: 2px; }
+.tag-chip { font-size: 11px; padding: 2px 8px; background: var(--mc-bg-sunken); color: var(--mc-text-tertiary); border-radius: 999px; white-space: nowrap; }
 </style>

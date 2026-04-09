@@ -91,6 +91,7 @@
               <span class="agent-badge-icon">{{ currentAgent.icon || '🤖' }}</span>
               <span class="agent-badge-name">{{ currentAgent.name }}</span>
               <span class="agent-badge-type">{{ currentAgent.agentType === 'react' ? 'ReAct' : 'Plan-Execute' }}</span>
+              <span class="status-dot" :class="connectionStatusClass" :title="connectionStatusLabel"></span>
             </div>
           </div>
           <div v-else class="no-agent-hint">{{ $t('chat.selectAgent') }}</div>
@@ -392,6 +393,18 @@ const {
       }
     }
   },
+})
+
+// ============ 连接状态 ============
+const connectionStatusClass = computed(() => {
+  if (isGenerating.value) return 'status-streaming'
+  if (streamPhase.value === 'failed') return 'status-error'
+  return 'status-idle'
+})
+const connectionStatusLabel = computed(() => {
+  if (isGenerating.value) return t('chat.status.streaming', 'Generating...')
+  if (streamPhase.value === 'failed') return t('chat.status.error', 'Disconnected')
+  return t('chat.status.idle', 'Ready')
 })
 
 // ============ 计算属性 ============
@@ -1450,6 +1463,15 @@ function handleCodeCopy(e: MouseEvent) {
   padding: 1px 6px;
   border-radius: 10px;
 }
+
+.status-dot {
+  width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0; margin-left: 2px;
+  transition: background 0.3s;
+}
+.status-idle { background: #34d399; box-shadow: 0 0 4px rgba(52, 211, 153, 0.5); }
+.status-streaming { background: #fbbf24; box-shadow: 0 0 4px rgba(251, 191, 36, 0.5); animation: pulse-dot 1.2s infinite; }
+.status-error { background: #f87171; box-shadow: 0 0 4px rgba(248, 113, 113, 0.5); }
+@keyframes pulse-dot { 0%, 100% { opacity: 1; } 50% { opacity: 0.4; } }
 
 .no-agent-hint {
   font-size: 13px;

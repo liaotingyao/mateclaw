@@ -4,12 +4,12 @@
       <div class="mc-page-inner dashboard-inner">
         <div class="mc-page-header">
           <div>
-            <div class="mc-page-kicker">Operations Pulse</div>
+            <div class="mc-page-kicker">{{ t('dashboard.kicker') }}</div>
             <h1 class="mc-page-title">{{ t('dashboard.title') }}</h1>
             <p class="mc-page-desc">{{ t('dashboard.desc') }}</p>
           </div>
           <div class="hero-note mc-surface-card">
-            <div class="hero-note__label">Today</div>
+            <div class="hero-note__label">{{ t('dashboard.periods.today') }}</div>
             <div class="hero-note__value">{{ formatTokens(todayStats.totalTokens) }}</div>
             <div class="hero-note__meta">{{ t('dashboard.tokens') }} · {{ todayStats.toolCalls }} {{ t('dashboard.toolCalls') }}</div>
           </div>
@@ -55,10 +55,20 @@
             </div>
           </div>
 
+          <div v-if="trendData.length" class="trend-section">
+            <div class="section-head">
+              <h2 class="section-title">{{ t('dashboard.trend.title', '7-Day Trend') }}</h2>
+              <p class="section-subtitle">{{ t('dashboard.trend.subtitle', 'Messages and token consumption over the past week.') }}</p>
+            </div>
+            <div class="trend-chart mc-surface-card">
+              <div ref="chartRef" class="chart-container"></div>
+            </div>
+          </div>
+
           <div class="comparison-section">
             <div class="section-head">
               <h2 class="section-title">{{ t('dashboard.periodComparison') }}</h2>
-              <p class="section-subtitle">A sharper view of how your system behaves across short, medium, and monthly horizons.</p>
+              <p class="section-subtitle">{{ t('dashboard.periodDesc') }}</p>
             </div>
             <div class="comparison-grid">
               <div class="comparison-card mc-surface-card" v-for="(period, key) in overview" :key="key">
@@ -86,7 +96,7 @@
           <div class="runs-section">
             <div class="section-head">
               <h2 class="section-title">{{ t('dashboard.recentRuns') }}</h2>
-              <p class="section-subtitle">Execution should feel legible. If it runs, you should see its rhythm, cost, and outcome instantly.</p>
+              <p class="section-subtitle">{{ t('dashboard.runsDesc') }}</p>
             </div>
             <div class="runs-table-wrapper mc-surface-card">
               <table v-if="recentRuns.length" class="runs-table">
@@ -123,15 +133,24 @@
 </template>
 
 <script setup lang="ts">
-import { ref, reactive, onMounted } from 'vue'
+import { ref, reactive, onMounted, onUnmounted, nextTick, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { ChatDotRound, DataLine, Document, Tools } from '@element-plus/icons-vue'
 import { dashboardApi } from '@/api'
+import * as echarts from 'echarts/core'
+import { LineChart } from 'echarts/charts'
+import { GridComponent, TooltipComponent, LegendComponent } from 'echarts/components'
+import { CanvasRenderer } from 'echarts/renderers'
+
+echarts.use([LineChart, GridComponent, TooltipComponent, LegendComponent, CanvasRenderer])
 
 const { t } = useI18n()
 
 const overview = ref<Record<string, any>>({})
 const recentRuns = ref<any[]>([])
+const trendData = ref<any[]>([])
+const chartRef = ref<HTMLElement | null>(null)
+let chartInstance: echarts.ECharts | null = null
 
 const todayStats = reactive({
   conversations: 0,
@@ -143,18 +162,101 @@ const todayStats = reactive({
 
 onMounted(async () => {
   try {
-    const [overviewRes, runsRes] = await Promise.all([
+    const [overviewRes, runsRes, trendRes] = await Promise.all([
       dashboardApi.overview(),
       dashboardApi.recentRuns(10),
+      dashboardApi.trend(7),
     ])
     overview.value = (overviewRes as any).data || {}
     const today = overview.value.today || {}
     Object.assign(todayStats, today)
     recentRuns.value = (runsRes as any).data || []
+    trendData.value = (trendRes as any).data || []
+    if (trendData.value.length) {
+      await nextTick()
+      renderChart()
+    }
   } catch {
     // Dashboard data is non-critical
   }
 })
+
+onUnmounted(() => {
+  chartInstance?.dispose()
+})
+
+function renderChart() {
+  if (!chartRef.value) return
+  chartInstance = echarts.init(chartRef.value)
+
+  const dates = trendData.value.map((d: any) => d.date?.slice(5) || '') // MM-DD
+  const messages = trendData.value.map((d: any) => d.messages || 0)
+  const tokens = trendData.value.map((d: any) => d.totalTokens || 0)
+
+  const style = getComputedStyle(document.documentElement)
+  const textColor = style.getPropertyValue('--mc-text-secondary').trim() || '#999'
+  const borderColor = style.getPropertyValue('--mc-border-light').trim() || '#eee'
+  const primaryColor = style.getPropertyValue('--mc-primary').trim() || '#D97757'
+
+  chartInstance.setOption({
+    tooltip: { trigger: 'axis' },
+    legend: {
+      data: [t('dashboard.messages'), 'Tokens'],
+      textStyle: { color: textColor, fontSize: 12 },
+      bottom: 0,
+    },
+    grid: { top: 10, right: 16, bottom: 36, left: 48, containLabel: false },
+    xAxis: {
+      type: 'category',
+      data: dates,
+      axisLabel: { color: textColor, fontSize: 11 },
+      axisLine: { lineStyle: { color: borderColor } },
+    },
+    yAxis: [
+      {
+        type: 'value',
+        axisLabel: { color: textColor, fontSize: 11 },
+        splitLine: { lineStyle: { color: borderColor, type: 'dashed' } },
+      },
+      {
+        type: 'value',
+        axisLabel: { color: textColor, fontSize: 11, formatter: (v: number) => v >= 1000 ? (v / 1000).toFixed(0) + 'K' : v },
+        splitLine: { show: false },
+      },
+    ],
+    series: [
+      {
+        name: t('dashboard.messages'),
+        type: 'line',
+        data: messages,
+        smooth: true,
+        symbol: 'circle',
+        symbolSize: 6,
+        lineStyle: { width: 2.5, color: primaryColor },
+        itemStyle: { color: primaryColor },
+        areaStyle: { color: new echarts.graphic.LinearGradient(0, 0, 0, 1, [
+          { offset: 0, color: primaryColor + '30' },
+          { offset: 1, color: primaryColor + '05' },
+        ])},
+      },
+      {
+        name: 'Tokens',
+        type: 'line',
+        yAxisIndex: 1,
+        data: tokens,
+        smooth: true,
+        symbol: 'circle',
+        symbolSize: 6,
+        lineStyle: { width: 2, color: '#60a5fa' },
+        itemStyle: { color: '#60a5fa' },
+      },
+    ],
+  })
+
+  // Responsive resize
+  const ro = new ResizeObserver(() => chartInstance?.resize())
+  ro.observe(chartRef.value!)
+}
 
 function formatTokens(n: number): string {
   if (!n) return '0'
@@ -269,6 +371,10 @@ function calcDuration(run: any): string {
 .stat-body { display: flex; flex-direction: column; }
 .stat-value { font-size: 30px; font-weight: 800; color: var(--mc-text-primary); line-height: 1; letter-spacing: -0.05em; }
 .stat-label { font-size: 12px; color: var(--mc-text-tertiary); margin-top: 6px; text-transform: uppercase; letter-spacing: 0.08em; }
+
+.trend-section { margin-bottom: 22px; }
+.trend-chart { padding: 18px; }
+.chart-container { width: 100%; height: 240px; }
 
 .comparison-section { margin-bottom: 22px; }
 .comparison-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 16px; }
