@@ -65,6 +65,7 @@ import vip.mate.planning.service.PlanningService;
 import vip.mate.skill.service.SkillService;
 import vip.mate.system.service.SystemSettingService;
 import vip.mate.tool.ToolRegistry;
+import vip.mate.memory.spi.MemoryManager;
 import vip.mate.workspace.document.WorkspaceFileService;
 import vip.mate.tool.guard.service.ToolGuardService;
 import vip.mate.workspace.conversation.ConversationService;
@@ -114,6 +115,7 @@ public class AgentGraphBuilder {
     private final ObjectMapper objectMapper;
     private final GraphObservationProperties graphObservationProperties;
     private final vip.mate.config.ToolTimeoutProperties toolTimeoutProperties;
+    private final MemoryManager memoryManager;
     private final WorkspaceFileService workspaceFileService;
     private final vip.mate.agent.context.ConversationWindowManager conversationWindowManager;
     private final vip.mate.llm.chatgpt.ChatGPTResponsesClient chatGPTResponsesClient;
@@ -533,10 +535,10 @@ public class AgentGraphBuilder {
     // ==================== Prompt 构建 ====================
 
     private String buildEnhancedPrompt(AgentEntity entity, boolean builtinSearchEnabled) {
-        // 优先从工作区 MD 文件组装系统提示词
-        String workspacePrompt = workspaceFileService.buildSystemPrompt(entity.getId());
-        String basePrompt = (workspacePrompt != null && !workspacePrompt.isBlank())
-                ? workspacePrompt
+        // 通过 MemoryManager 从所有 MemoryProvider 组装系统提示词（快照冻结）
+        String memoryPrompt = memoryManager.buildSystemPromptBlock(entity.getId());
+        String basePrompt = (memoryPrompt != null && !memoryPrompt.isBlank())
+                ? memoryPrompt
                 : (entity.getSystemPrompt() != null ? entity.getSystemPrompt() : "");
 
         // 使用 skill runtime 构建技能增强（per-agent 绑定过滤）
@@ -574,6 +576,27 @@ public class AgentGraphBuilder {
                 - Prefer updating an existing section over appending duplicate bullets
                 - Treat `MEMORY.md` as a compact mental model, not a raw transcript dump
                 - When answering tasks involving prior decisions, preferences, habits, or ongoing work, proactively consult relevant workspace memory first
+
+                ## Structured Memory Tools
+                For discrete, typed facts use structured memory tools (separate from workspace files):
+                - `remember_structured(agentId, type, key, content)` — store a typed entry
+                - `recall_structured(agentId, type, keyword)` — search entries by type and/or keyword
+                - `forget_structured(agentId, type, key)` — remove an entry
+
+                Types:
+                - `user`: preferences, expertise, communication style, role
+                - `feedback`: behavioral corrections or confirmed approaches (include WHY)
+                - `project`: decisions, deadlines, constraints not derivable from code/git
+                - `reference`: pointers to external systems (Linear boards, Grafana dashboards, Slack channels)
+
+                Use workspace memory tools (MEMORY.md, daily notes) for long-form narrative notes.
+                Use structured memory tools for key-value facts the system can query efficiently.
+
+                ## Session Search
+                - `session_search(agentId, currentConversationId, mode, query, limit)` — search conversation history
+                - mode="recent": list recent conversations (titles, times, message counts)
+                - mode="search": keyword full-text search across past messages
+                - Use this to recall previous discussions, look up past decisions, or find context from earlier conversations
 
                 ## Tool Usage Guidelines
                 When you have available tools, use them to access local system information, files, or execute commands.

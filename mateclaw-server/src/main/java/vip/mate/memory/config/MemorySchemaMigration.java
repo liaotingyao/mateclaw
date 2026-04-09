@@ -28,7 +28,23 @@ public class MemorySchemaMigration implements ApplicationRunner {
     public void run(ApplicationArguments args) {
         // 增量索引补齐（v1.1 新增的复合索引，旧版本可能没有）
         safeExecute("CREATE INDEX IF NOT EXISTS idx_memory_recall_candidates ON mate_memory_recall(agent_id, promoted, deleted)");
+
+        // Session Search: MySQL FULLTEXT index on mate_message.content
+        if (isMySql()) {
+            safeExecute("ALTER TABLE mate_message ADD FULLTEXT INDEX ft_msg_content (content)");
+            log.info("[MemorySchemaMigration] MySQL FULLTEXT index on mate_message.content created (or already exists)");
+        }
+
         log.debug("[MemorySchemaMigration] Incremental migration completed");
+    }
+
+    private boolean isMySql() {
+        try {
+            String url = jdbcTemplate.getDataSource().getConnection().getMetaData().getURL();
+            return url != null && url.contains("mysql");
+        } catch (Exception e) {
+            return false;
+        }
     }
 
     private void safeExecute(String sql) {

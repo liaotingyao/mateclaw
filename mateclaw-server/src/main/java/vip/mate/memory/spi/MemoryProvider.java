@@ -1,0 +1,98 @@
+package vip.mate.memory.spi;
+
+import java.util.Collections;
+import java.util.List;
+
+/**
+ * Memory provider SPI.
+ * <p>
+ * Pluggable interface for memory backends. Each provider contributes to:
+ * <ul>
+ *   <li>System prompt assembly (frozen at agent build time)</li>
+ *   <li>Per-turn context prefetch (injected before LLM call)</li>
+ *   <li>Post-turn sync (async persistence)</li>
+ *   <li>Agent tools (Spring AI @Tool beans)</li>
+ * </ul>
+ * <p>
+ * Inspired by Hermes Agent's MemoryProvider architecture.
+ *
+ * @author MateClaw Team
+ */
+public interface MemoryProvider {
+
+    /**
+     * Unique provider identifier, e.g. "builtin", "structured", "session_search".
+     */
+    String id();
+
+    /**
+     * Ordering for system prompt assembly and lifecycle dispatch.
+     * Lower values run first. Builtin = 0.
+     */
+    default int order() {
+        return 100;
+    }
+
+    /**
+     * Runtime availability check. Should not make network calls.
+     */
+    default boolean isAvailable() {
+        return true;
+    }
+
+    /**
+     * System prompt contribution. Called once at agent build time,
+     * result is frozen as a snapshot for the session lifetime.
+     * Mid-session memory writes update the DB but NOT this snapshot
+     * (preserves prompt cache efficiency).
+     *
+     * @param agentId the agent ID
+     * @return text to include in system prompt, or empty string to skip
+     */
+    default String systemPromptBlock(Long agentId) {
+        return "";
+    }
+
+    /**
+     * Pre-turn context recall. Called before each LLM API call.
+     * Return relevant context to inject, or empty string.
+     * Should be fast; use background threads for actual recall.
+     *
+     * @param agentId   the agent ID
+     * @param userQuery the current user message
+     * @return context text to inject, wrapped in memory-context fence by MemoryManager
+     */
+    default String prefetch(Long agentId, String userQuery) {
+        return "";
+    }
+
+    /**
+     * Post-turn sync. Called after LLM response is available.
+     * Should be non-blocking (async).
+     */
+    default void syncTurn(Long agentId, String conversationId,
+                          String userMessage, String assistantReply) {
+    }
+
+    /**
+     * Spring AI @Tool beans this provider wants to expose to the agent.
+     * These are collected by MemoryManager and added to the tool set.
+     */
+    default List<Object> getToolBeans() {
+        return Collections.emptyList();
+    }
+
+    /**
+     * Session end hook. Called when a conversation completes.
+     */
+    default void onSessionEnd(Long agentId, String conversationId) {
+    }
+
+    /**
+     * Pre-compression hook. Called before context window compression
+     * discards old messages. Return text to preserve in compression summary.
+     */
+    default String onPreCompress(Long agentId, List<?> messages) {
+        return "";
+    }
+}

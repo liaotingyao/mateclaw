@@ -3,6 +3,9 @@ package vip.mate.memory;
 import lombok.Data;
 import org.springframework.boot.context.properties.ConfigurationProperties;
 
+import java.util.HashSet;
+import java.util.Set;
+
 /**
  * 记忆自动更新配置
  *
@@ -58,4 +61,23 @@ public class MemoryProperties {
 
     /** 候选最大年龄（天），超过此值不参与评分。0=不限 */
     private int emergenceMaxAgeDays = 30;
+
+    // ==================== Memory Nudge 配置 ====================
+
+    /** 启用对话中记忆自省（每 N 轮异步提取结构化记忆） */
+    private boolean nudgeEnabled = true;
+
+    /** 每多少轮消息触发一次 Nudge（0=关闭） */
+    private int nudgeTurnInterval = 6;
+
+    /** Nudge 审查的最大消息数 */
+    private int nudgeMaxMessages = 20;
+
+    /** 同一 Agent Nudge 冷却时间（分钟） */
+    private int nudgeCooldownMinutes = 10;
+
+    // ==================== Provider 管理 ====================
+
+    /** 禁用的 MemoryProvider ID 集合（例如 "structured", "session_search"） */
+    private Set<String> disabledProviders = new HashSet<>();
 }

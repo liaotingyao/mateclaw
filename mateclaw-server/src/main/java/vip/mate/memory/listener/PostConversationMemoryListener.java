@@ -7,6 +7,7 @@ import org.springframework.scheduling.annotation.Async;
 import org.springframework.stereotype.Component;
 import vip.mate.memory.MemoryProperties;
 import vip.mate.memory.event.ConversationCompletedEvent;
+import vip.mate.memory.nudge.MemoryNudgeService;
 import vip.mate.memory.service.MemorySummarizationService;
 
 /**
@@ -23,6 +24,7 @@ public class PostConversationMemoryListener {
 
     private final MemoryProperties properties;
     private final MemorySummarizationService summarizationService;
+    private final MemoryNudgeService nudgeService;
 
     @Async
     @EventListener
@@ -54,6 +56,13 @@ public class PostConversationMemoryListener {
         } catch (Exception e) {
             log.warn("[Memory] Post-conversation summarization failed: agent={}, conv={}, error={}",
                     event.agentId(), event.conversationId(), e.getMessage());
+        }
+
+        // Memory Nudge: extract structured entries every N turns
+        try {
+            nudgeService.maybeNudge(event.agentId(), event.conversationId(), event.messageCount());
+        } catch (Exception e) {
+            log.debug("[Memory] Nudge trigger failed (non-fatal): {}", e.getMessage());
         }
     }
 }
