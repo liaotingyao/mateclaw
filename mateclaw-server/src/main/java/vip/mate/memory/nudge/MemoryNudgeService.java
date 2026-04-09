@@ -108,7 +108,7 @@ public class MemoryNudgeService {
                 .replace("{transcript}", transcript)
                 .replace("{existing_memories}", existingMemories.isBlank() ? "(none)" : existingMemories);
 
-        // 5. Call LLM
+        // 5. Call LLM (with rate limit retry)
         String llmResponse;
         try {
             ChatModel chatModel = buildChatModel();
@@ -116,8 +116,11 @@ public class MemoryNudgeService {
                     new SystemMessage(systemPrompt),
                     new UserMessage(userPrompt)
             ));
-            ChatResponse response = chatModel.call(prompt);
-            llmResponse = response.getResult().getOutput().getText();
+            llmResponse = callLlmWithRetry(chatModel, prompt, 2);
+            if (llmResponse == null) {
+                log.warn("[Nudge] LLM returned null after retries for agent={}", agentId);
+                return;
+            }
         } catch (Exception e) {
             log.warn("[Nudge] LLM call failed for agent={}: {}", agentId, e.getMessage());
             return;
@@ -191,6 +194,38 @@ public class MemoryNudgeService {
             log.debug("[Nudge] JSON parse failed: {}", e.getMessage());
             return null;
         }
+    }
+
+    private String callLlmWithRetry(ChatModel chatModel, Prompt prompt, int maxRetries) {
+        for (int attempt = 0; attempt <= maxRetries; attempt++) {
+            try {
+                ChatResponse response = chatModel.call(prompt);
+                if (response != null && response.getResult() != null
+                        && response.getResult().getOutput() != null) {
+                    return response.getResult().getOutput().getText();
+                }
+                return null;
+            } catch (Exception e) {
+                if (attempt < maxRetries && isRateLimitError(e)) {
+                    long delay = 5000L * (attempt + 1);
+                    log.info("[Nudge] Rate limited, waiting {}ms before retry ({}/{})",
+                            delay, attempt + 1, maxRetries);
+                    try { Thread.sleep(delay); } catch (InterruptedException ie) {
+                        Thread.currentThread().interrupt();
+                        return null;
+                    }
+                } else {
+                    throw e instanceof RuntimeException re ? re : new RuntimeException(e);
+                }
+            }
+        }
+        return null;
+    }
+
+    private boolean isRateLimitError(Exception e) {
+        String msg = e.getMessage();
+        return msg != null && (msg.contains("429") || msg.contains("rate_limit")
+                || msg.contains("速率限制") || msg.contains("Too Many Requests"));
     }
 
     private boolean isInCooldown(Long agentId) {

@@ -71,6 +71,24 @@ public class ObservationNode implements NodeAction {
         // 合并为单条观察记录
         String combinedObservation = String.join("\n---\n", processedObservations);
 
+        // Budget Pressure Warning（Hermes 风格）：接近上限时注入警告到工具结果中
+        // LLM 下一轮 reasoning 时能看到，从而主动收束，而非被硬性截断
+        if (maxIterations > 0) {
+            int progress = (int) ((double) nextIteration / maxIterations * 100);
+            if (progress >= 90) {
+                combinedObservation += "\n\n[⚠️ 预算警告] 当前迭代 " + nextIteration + "/" + maxIterations +
+                        "，仅剩 " + (maxIterations - nextIteration) + " 步。" +
+                        "请立即提供最终回答，不要再调用工具（除非绝对必要）。";
+                log.info("[ObservationNode] Budget WARNING injected: {}/{} ({}%)",
+                        nextIteration, maxIterations, progress);
+            } else if (progress >= 70) {
+                combinedObservation += "\n\n[📊 预算提示] 当前迭代 " + nextIteration + "/" + maxIterations +
+                        "，剩余 " + (maxIterations - nextIteration) + " 步。请开始整合已有信息，准备给出回答。";
+                log.info("[ObservationNode] Budget caution injected: {}/{} ({}%)",
+                        nextIteration, maxIterations, progress);
+            }
+        }
+
         // 手动累加观察历史（OBSERVATION_HISTORY 使用 REPLACE 策略，以便 SummarizingNode 可清空）
         List<String> existingHistory = accessor.observationHistory();
         List<String> updatedHistory = new ArrayList<>(existingHistory);

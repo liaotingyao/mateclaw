@@ -83,6 +83,11 @@ public class RepetitionDetector {
             }
 
             if (count >= MIN_REPEATS) {
+                // 排除装饰性重复（代码缩进、ASCII 图表、Markdown 分隔线常见）
+                if (isDecorativePattern(pattern)) {
+                    continue;
+                }
+
                 repetitionDetected = true;
                 log.warn("[RepetitionDetector] Detected degenerate repetition: " +
                                 "pattern length={}, repeats={}, pattern preview=\"{}\"",
@@ -93,6 +98,46 @@ public class RepetitionDetector {
         }
 
         return false;
+    }
+
+    /**
+     * 判断 pattern 是否为装饰性字符（不应判定为退化重复）。
+     * <p>
+     * 排除场景：
+     * <ul>
+     *   <li>纯空白/缩进：{@code "        "}（代码缩进）</li>
+     *   <li>单一重复字符：{@code "────────"} {@code "════════"} {@code "--------"} {@code "********"}（分隔线、表格边框）</li>
+     *   <li>Box Drawing 字符族：{@code "┌──────┐"} {@code "│      │"}（ASCII 图表）</li>
+     * </ul>
+     */
+    private boolean isDecorativePattern(String pattern) {
+        if (pattern.isBlank()) {
+            return true; // 纯空白
+        }
+
+        // 统计不同的非空白字符种类
+        long distinctNonWhitespace = pattern.chars()
+                .filter(c -> !Character.isWhitespace(c))
+                .distinct()
+                .count();
+
+        // 只有 1-2 种不同的非空白字符 → 装饰性（如 "────────" 或 "│      │"）
+        if (distinctNonWhitespace <= 2) {
+            return true;
+        }
+
+        // 检查是否全部是 Box Drawing / 装饰字符
+        boolean allDecorative = pattern.chars().allMatch(c ->
+                Character.isWhitespace(c)
+                || isBoxDrawing(c)
+                || "─━│┃┄┅┆┇┈┉┊┋═║╌╍╎╏╔╗╚╝╠╣╦╩╬├┤┬┴┼┌┐└┘".indexOf(c) >= 0
+                || "-=_*+|#~<>".indexOf(c) >= 0);
+        return allDecorative;
+    }
+
+    private boolean isBoxDrawing(int codePoint) {
+        // Unicode Box Drawing block: U+2500 – U+257F
+        return codePoint >= 0x2500 && codePoint <= 0x257F;
     }
 
     /**

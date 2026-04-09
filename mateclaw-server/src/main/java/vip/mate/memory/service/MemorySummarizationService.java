@@ -120,8 +120,11 @@ public class MemorySummarizationService {
                     new SystemMessage(systemPrompt),
                     new UserMessage(userPrompt)
             ));
-            ChatResponse response = chatModel.call(prompt);
-            llmResponse = response.getResult().getOutput().getText();
+            llmResponse = callLlmWithRetry(chatModel, prompt, 2);
+            if (llmResponse == null) {
+                log.warn("[Memory] LLM returned null after retries for agent={}, conv={}", agentId, conversationId);
+                return;
+            }
         } catch (Exception e) {
             log.warn("[Memory] LLM call failed for agent={}, conv={}: {}",
                     agentId, conversationId, e.getMessage());
@@ -245,6 +248,42 @@ public class MemorySummarizationService {
         } catch (Exception e) {
             return "";
         }
+    }
+
+    /**
+     * 带轻量重试的 LLM 调用：遇到 429 时等待后重试，避免后台任务因限流直接放弃。
+     * Spring AI RetryTemplate 已处理第一层重试，此方法作为二次保护。
+     */
+    private String callLlmWithRetry(ChatModel chatModel, Prompt prompt, int maxRetries) {
+        for (int attempt = 0; attempt <= maxRetries; attempt++) {
+            try {
+                ChatResponse response = chatModel.call(prompt);
+                if (response != null && response.getResult() != null
+                        && response.getResult().getOutput() != null) {
+                    return response.getResult().getOutput().getText();
+                }
+                return null;
+            } catch (Exception e) {
+                if (attempt < maxRetries && isRateLimitError(e)) {
+                    long delay = 5000L * (attempt + 1);
+                    log.info("[Memory] Rate limited, waiting {}ms before retry ({}/{})",
+                            delay, attempt + 1, maxRetries);
+                    try { Thread.sleep(delay); } catch (InterruptedException ie) {
+                        Thread.currentThread().interrupt();
+                        return null;
+                    }
+                } else {
+                    throw e instanceof RuntimeException re ? re : new RuntimeException(e);
+                }
+            }
+        }
+        return null;
+    }
+
+    private boolean isRateLimitError(Exception e) {
+        String msg = e.getMessage();
+        return msg != null && (msg.contains("429") || msg.contains("rate_limit")
+                || msg.contains("速率限制") || msg.contains("Too Many Requests"));
     }
 
     private boolean isInCooldown(Long agentId) {

@@ -44,7 +44,7 @@ public abstract class BaseAgent {
     protected String systemPrompt;
 
     /** 最大工具调用迭代次数 */
-    protected int maxIterations = 10;
+    protected int maxIterations = 25;
 
     /** 模型名称 */
     protected String modelName;

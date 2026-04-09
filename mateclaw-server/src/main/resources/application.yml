@@ -45,6 +45,14 @@ spring:
         repository:
           jdbc:
             initialize-schema: embedded
+    # Spring AI Retry 配置：429/503/529 归为可重试（TransientAiException），启用指数退避
+    retry:
+      max-attempts: 5
+      on-http-codes: 429, 503, 529
+      backoff:
+        initial-interval: 3000
+        multiplier: 3
+        max-interval: 60000
     # 禁用 Spring AI MCP Client 自动配置（由 McpClientManager 自行管理生命周期）
     mcp:
       client:

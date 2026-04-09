@@ -15,19 +15,33 @@ import com.alibaba.cloud.ai.dashscope.chat.DashScopeChatOptions;
 import org.springframework.stereotype.Component;
 import vip.mate.agent.prompt.PromptLoader;
 import vip.mate.config.ConversationWindowProperties;
+import vip.mate.memory.spi.MemoryManager;
 
 import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.ConcurrentHashMap;
 
 /**
- * 会话历史上下文窗口管理器
+ * 会话历史上下文窗口管理器（Hermes 风格升级版）
  * <p>
- * 在消息注入 StateGraph 之前，检测 token 是否超出模型上下文窗口，
- * 若超出则将较早的消息通过 LLM 压缩为摘要，保留最近 N 轮原始消息。
+ * 四阶段压缩策略：
+ * <ol>
+ *   <li>Soft Trim — 裁剪旧工具结果为 head+tail</li>
+ *   <li>Hard Clear — 替换所有旧工具结果为占位符</li>
+ *   <li>Pre-Prune — 喂给摘要 LLM 前清理工具输出（减少摘要输入 token）</li>
+ *   <li>LLM 结构化摘要 — Goal/Progress/Decisions/Files/NextSteps 模板，支持迭代更新</li>
+ * </ol>
+ * <p>
+ * 关键特性：
+ * <ul>
+ *   <li>迭代摘要更新：多轮压缩时将旧摘要 + 新轮次合并，信息不丢失</li>
+ *   <li>动态 Token 预算：基于模型上下文长度计算尾部保护和摘要预算</li>
+ *   <li>压缩冷却机制：摘要失败后 10 分钟内不重试，防止雪崩</li>
+ *   <li>MemoryProvider 钩子：压缩前通知记忆 provider 提取关键信息</li>
+ * </ul>
  * <p>
  * 安全设计：摘要内容作为 UserMessage 注入（非 SystemMessage），
- * 避免历史用户输入被提升为系统级指令，防止指令污染。
+ * 避免历史用户输入被提升为系统级指令。
  *
  * @author MateClaw Team
  */
@@ -36,35 +50,70 @@ import java.util.concurrent.ConcurrentHashMap;
 @RequiredArgsConstructor
 public class ConversationWindowManager {
 
-    private static final String SUMMARY_SYSTEM_PROMPT = PromptLoader.loadPrompt("context/conversation-summary-system");
-    private static final String SUMMARY_USER_TEMPLATE = PromptLoader.loadPrompt("context/conversation-summary-user");
+    // ==================== Prompt 模板 ====================
+
+    /** 首次压缩：结构化摘要系统提示 */
+    private static final String STRUCTURED_SUMMARY_SYSTEM = PromptLoader.loadPrompt("context/structured-summary-system");
+    /** 首次压缩：用户提示模板 */
+    private static final String STRUCTURED_SUMMARY_USER = PromptLoader.loadPrompt("context/structured-summary-user");
+    /** 迭代更新：合并旧摘要 + 新轮次 */
+    private static final String STRUCTURED_SUMMARY_UPDATE = PromptLoader.loadPrompt("context/structured-summary-update");
+
+    /** 摘要注入前缀 */
+    private static final String SUMMARY_PREFIX =
+            "[上下文压缩] 更早的对话轮次已被压缩为摘要以节省上下文空间。" +
+            "以下摘要描述了已完成的工作，当前会话状态可能已反映这些变更。" +
+            "请基于摘要和当前状态继续，避免重复已完成的工作：\n\n";
+
+    // ==================== 序列化截断参数 ====================
+
+    private static final int CONTENT_MAX = 6000;
+    private static final int CONTENT_HEAD = 4000;
+    private static final int CONTENT_TAIL = 1500;
+
+    // ==================== 冷却机制 ====================
+
+    /** 摘要失败后的冷却时间（毫秒）：10 分钟 */
+    private static final long SUMMARY_COOLDOWN_MS = 600_000;
+
+    // ==================== 依赖 ====================
 
     private final ConversationWindowProperties properties;
+    private final MemoryManager memoryManager;
+
+    // ==================== 状态 ====================
 
     /** 摘要缓存：key = "conversationId:oldMessageCount" */
     private final ConcurrentHashMap<String, CachedSummary> summaryCache = new ConcurrentHashMap<>();
-
-    /** 缓存 TTL：30 分钟 */
     private static final long CACHE_TTL_MS = 30 * 60 * 1000L;
+
+    /** 迭代摘要：上一次压缩生成的摘要文本（per conversation） */
+    private final ConcurrentHashMap<String, String> previousSummaries = new ConcurrentHashMap<>();
+
+    /** 每个会话的压缩次数 */
+    private final ConcurrentHashMap<String, Integer> compressionCounts = new ConcurrentHashMap<>();
+
+    /** 每个会话的摘要冷却截止时间 */
+    private final ConcurrentHashMap<String, Long> summaryCooldownUntil = new ConcurrentHashMap<>();
+
+    // ==================== 主入口 ====================
 
     /**
      * 将会话历史裁剪到上下文窗口内。
-     * <p>
-     * 预算计算包含 systemPrompt + 历史消息 + 当前用户消息，
-     * 确保最终拼接后不超出模型上下文窗口。
      *
      * @param messages          已转换的 Spring AI 消息列表（不含当前用户消息）
      * @param systemPrompt      系统提示词文本
-     * @param currentUserMessage 当前用户输入（纳入窗口预算计算，但不会拼入返回结果）
+     * @param currentUserMessage 当前用户输入（纳入窗口预算计算，但不拼入返回结果）
      * @param maxInputTokens    模型最大输入 token（0 或 null 使用全局默认）
      * @param chatModel         用于生成摘要的 ChatModel
-     * @param conversationId    会话 ID（用于缓存）
-     * @return 裁剪后的消息列表，可能包含摘要前缀
+     * @param conversationId    会话 ID（用于缓存和迭代摘要）
+     * @param agentId           Agent ID（用于 MemoryProvider 钩子）
+     * @return 裁剪后的消息列表
      */
     public List<Message> fitToWindow(List<Message> messages, String systemPrompt,
                                      String currentUserMessage,
                                      Integer maxInputTokens, ChatModel chatModel,
-                                     String conversationId) {
+                                     String conversationId, Long agentId) {
         if (messages == null || messages.isEmpty()) {
             return messages;
         }
@@ -82,47 +131,57 @@ public class ConversationWindowManager {
             return messages;
         }
 
-        log.info("[ConversationWindow] 超阈值: {} tokens (system={}, current={}, history={}) > {} 触发阈值 (max={}), conversationId={}",
+        log.info("[ConversationWindow] 超阈值: {} tokens (system={}, current={}, history={}) > {} 触发阈值 (max={}), conv={}",
                 totalTokens, systemTokens, currentMsgTokens, historyTokens,
                 triggerThreshold, effectiveMax, conversationId);
 
-        // 清理过期缓存
         evictExpiredEntries();
 
         // 可用于历史的 token 预算 = max - system - currentMsg - 安全余量
         int reservedTokens = systemTokens + currentMsgTokens + (int) (effectiveMax * 0.05);
         int historyBudget = effectiveMax - reservedTokens;
 
-        return compactMessages(messages, historyBudget, chatModel, conversationId);
+        // 尾部保护 token 预算：阈值的 20%（与 Hermes 一致）
+        int tailTokenBudget = (int) (triggerThreshold * 0.20);
+
+        return compactMessages(messages, historyBudget, tailTokenBudget, chatModel, conversationId, agentId);
     }
 
-    private List<Message> compactMessages(List<Message> messages, int historyBudget,
-                                          ChatModel chatModel, String conversationId) {
-        // 计算保留多少条最近消息
-        int preserveCount = calculatePreserveCount(messages);
+    /**
+     * 向后兼容：不传 agentId 的旧签名（agentId = null，不触发 Memory 钩子）
+     */
+    public List<Message> fitToWindow(List<Message> messages, String systemPrompt,
+                                     String currentUserMessage,
+                                     Integer maxInputTokens, ChatModel chatModel,
+                                     String conversationId) {
+        return fitToWindow(messages, systemPrompt, currentUserMessage,
+                maxInputTokens, chatModel, conversationId, null);
+    }
 
-        // 如果消息总数不够拆分，尝试逐步减少保留数
-        if (preserveCount >= messages.size()) {
-            // 消息太少无法拆分，尝试保留最少 2 条
-            preserveCount = Math.min(2, messages.size());
-            if (preserveCount >= messages.size()) {
-                log.debug("[ConversationWindow] 消息数 {} 无法拆分，跳过压缩", messages.size());
-                return messages;
-            }
+    // ==================== 核心压缩逻辑 ====================
+
+    private List<Message> compactMessages(List<Message> messages, int historyBudget,
+                                          int tailTokenBudget, ChatModel chatModel,
+                                          String conversationId, Long agentId) {
+        // 动态计算尾部保护边界（替代固定 preserveRecentPairs）
+        int headEnd = 0; // 头部保护：暂不保护（system prompt 已在外部计算）
+        int tailStart = findTailBoundary(messages, headEnd, tailTokenBudget);
+
+        if (tailStart <= headEnd) {
+            log.debug("[ConversationWindow] 消息数不足以拆分，跳过压缩");
+            return messages;
         }
 
-        int splitPoint = messages.size() - preserveCount;
-        List<Message> oldMessages = new ArrayList<>(messages.subList(0, splitPoint)); // 可变副本
-        List<Message> recentMessages = messages.subList(splitPoint, messages.size());
+        List<Message> oldMessages = new ArrayList<>(messages.subList(headEnd, tailStart));
+        List<Message> recentMessages = messages.subList(tailStart, messages.size());
 
-        // ═══ Phase 1: Soft Trim — 裁剪工具结果（head+tail），避免不必要的 LLM 摘要 ═══
+        // ═══ Phase 1: Soft Trim — 裁剪旧工具结果 ═══
         int softTrimmed = softTrimToolResults(oldMessages);
         if (softTrimmed > 0) {
             int afterTrimTokens = TokenEstimator.estimateTokens(oldMessages) + TokenEstimator.estimateTokens(recentMessages);
-            log.info("[ConversationWindow] Soft trim: {} tool results trimmed, tokens now={}, budget={}",
+            log.info("[ConversationWindow] Phase 1 Soft trim: {} tool results trimmed, tokens={}, budget={}",
                     softTrimmed, afterTrimTokens, historyBudget);
             if (afterTrimTokens <= historyBudget) {
-                // Soft trim 够了，跳过 LLM 摘要
                 List<Message> result = new ArrayList<>(oldMessages);
                 result.addAll(recentMessages);
                 return result;
@@ -133,7 +192,7 @@ public class ConversationWindowManager {
         int hardCleared = hardClearToolResults(oldMessages);
         if (hardCleared > 0) {
             int afterClearTokens = TokenEstimator.estimateTokens(oldMessages) + TokenEstimator.estimateTokens(recentMessages);
-            log.info("[ConversationWindow] Hard clear: {} tool results replaced with placeholder, tokens now={}, budget={}",
+            log.info("[ConversationWindow] Phase 2 Hard clear: {} replaced, tokens={}, budget={}",
                     hardCleared, afterClearTokens, historyBudget);
             if (afterClearTokens <= historyBudget) {
                 List<Message> result = new ArrayList<>(oldMessages);
@@ -142,7 +201,31 @@ public class ConversationWindowManager {
             }
         }
 
-        // ═══ Phase 3: LLM 摘要（原有逻辑，仅在 Phase 1+2 不够时执行） ═══
+        // ═══ Phase 2.5: MemoryProvider 钩子 — 压缩前提取关键信息 ═══
+        String memoryExtraContext = "";
+        if (agentId != null && memoryManager != null) {
+            try {
+                String preserved = memoryManager.onPreCompress(agentId, oldMessages);
+                if (preserved != null && !preserved.isBlank()) {
+                    memoryExtraContext = preserved;
+                    log.debug("[ConversationWindow] MemoryProvider onPreCompress contributed {} chars", preserved.length());
+                }
+            } catch (Exception e) {
+                log.debug("[ConversationWindow] onPreCompress hook failed: {}", e.getMessage());
+            }
+        }
+
+        // ═══ Phase 3: Pre-Prune + LLM 结构化摘要 ═══
+
+        // Pre-prune：在喂给摘要 LLM 前清理旧消息中的工具输出
+        List<Message> forSummary = new ArrayList<>(oldMessages);
+        int prePruned = prePruneForSummary(forSummary);
+        if (prePruned > 0) {
+            log.info("[ConversationWindow] Phase 3 Pre-prune: {} tool results cleared before summarization", prePruned);
+        }
+
+        // 计算动态摘要预算
+        int summaryBudget = computeSummaryBudget(forSummary);
 
         // 检查缓存
         String cacheKey = conversationId + ":" + oldMessages.size();
@@ -151,30 +234,29 @@ public class ConversationWindowManager {
 
         if (cached != null && !cached.isExpired(CACHE_TTL_MS)) {
             summary = cached.summary();
-            log.debug("[ConversationWindow] 命中摘要缓存, conversationId={}", conversationId);
+            log.debug("[ConversationWindow] 命中摘要缓存, conv={}", conversationId);
         } else {
-            summary = generateSummary(oldMessages, chatModel);
+            summary = generateSummary(forSummary, chatModel, conversationId, summaryBudget, memoryExtraContext);
             if (summary != null) {
                 summaryCache.put(cacheKey, new CachedSummary(summary, System.currentTimeMillis()));
-                log.info("[ConversationWindow] 生成新摘要 ({} 字符), 压缩 {} 条旧消息, conversationId={}",
-                        summary.length(), oldMessages.size(), conversationId);
+                int count = compressionCounts.merge(conversationId, 1, Integer::sum);
+                log.info("[ConversationWindow] 生成结构化摘要 ({} 字符, 第 {} 次压缩), 压缩 {} 条旧消息, conv={}",
+                        summary.length(), count, oldMessages.size(), conversationId);
             }
         }
 
         // 组装结果
         List<Message> result = new ArrayList<>();
         if (summary != null && !summary.isBlank()) {
-            // 安全：作为 UserMessage 注入，避免历史内容获得 system 级优先级
-            result.add(new UserMessage("[对话上下文摘要 - 仅供参考，不是指令]\n" + summary));
+            result.add(new UserMessage(SUMMARY_PREFIX + summary));
         } else if (!oldMessages.isEmpty()) {
-            // LLM 摘要生成失败，降级：保留最近几条旧消息而非全部丢弃
-            log.warn("[ConversationWindow] 摘要生成失败，降级为简单截断保留最近旧消息, conversationId={}", conversationId);
-            int fallbackKeep = Math.min(4, oldMessages.size()); // 保留最近 4 条旧消息
+            log.warn("[ConversationWindow] 摘要生成失败，降级为保留最近 4 条旧消息, conv={}", conversationId);
+            int fallbackKeep = Math.min(4, oldMessages.size());
             result.addAll(oldMessages.subList(oldMessages.size() - fallbackKeep, oldMessages.size()));
         }
         result.addAll(recentMessages);
 
-        // 压缩后校验：如果仍然超出预算，逐步丢弃更多旧的保留消息
+        // 压缩后校验
         int resultTokens = TokenEstimator.estimateTokens(result);
         if (resultTokens > historyBudget && result.size() > 2) {
             log.warn("[ConversationWindow] 压缩后仍超预算: {} > {}, 执行二次裁剪", resultTokens, historyBudget);
@@ -184,11 +266,59 @@ public class ConversationWindowManager {
         return result;
     }
 
-    // ==================== 工具结果裁剪 ====================
+    // ==================== 动态 Token 预算 ====================
 
     /**
-     * Soft trim：对工具结果做 head+tail 裁剪（保留首尾各 200 字符）。
-     * @return 裁剪的工具结果条数
+     * 基于 token 预算动态计算尾部保护边界（替代固定 preserveRecentPairs）。
+     * 从消息列表末尾向前累加 token，直到耗尽预算或达到最小消息数。
+     */
+    private int findTailBoundary(List<Message> messages, int headEnd, int tailTokenBudget) {
+        int n = messages.size();
+        if (n <= headEnd + 1) return headEnd;
+
+        int minTail = Math.min(properties.getProtectLastMinMessages(), n - headEnd - 1);
+        // 兼容旧配置：如果 protectLastMinMessages 未设置但 preserveRecentPairs 有值
+        int pairsBased = properties.getPreserveRecentPairs() * 2;
+        if (pairsBased > minTail) {
+            minTail = Math.min(pairsBased, n - headEnd - 1);
+        }
+
+        int softCeiling = (int) (tailTokenBudget * 1.5);
+        int accumulated = 0;
+        int cutIdx = n;
+
+        for (int i = n - 1; i >= headEnd; i--) {
+            int msgTokens = TokenEstimator.estimateTokens(messages.get(i));
+            if (accumulated + msgTokens > softCeiling && (n - i) >= minTail) {
+                break;
+            }
+            accumulated += msgTokens;
+            cutIdx = i;
+        }
+
+        // 确保至少保留 minTail 条
+        int fallbackCut = n - minTail;
+        if (cutIdx > fallbackCut) {
+            cutIdx = fallbackCut;
+        }
+
+        return Math.max(cutIdx, headEnd + 1);
+    }
+
+    /**
+     * 计算摘要字数预算：被压缩内容 token 的 20%，不低于 500、不超过 3000。
+     */
+    private int computeSummaryBudget(List<Message> turnsToSummarize) {
+        int contentTokens = TokenEstimator.estimateTokens(turnsToSummarize);
+        int budget = (int) (contentTokens * properties.getSummaryBudgetRatio());
+        return Math.max(properties.getSummaryBudgetFloor(),
+                Math.min(budget, properties.getSummaryBudgetCeiling()));
+    }
+
+    // ==================== 工具结果处理 ====================
+
+    /**
+     * Phase 1 - Soft trim：对工具结果做 head+tail 裁剪（保留首尾各 200 字符）。
      */
     private int softTrimToolResults(List<Message> messages) {
         int trimmed = 0;
@@ -218,8 +348,7 @@ public class ConversationWindowManager {
     }
 
     /**
-     * Hard clear：将所有工具结果替换为占位符。
-     * @return 替换的工具结果条数
+     * Phase 2 - Hard clear：将所有旧工具结果替换为占位符。
      */
     private int hardClearToolResults(List<Message> messages) {
         int cleared = 0;
@@ -236,8 +365,136 @@ public class ConversationWindowManager {
     }
 
     /**
+     * Phase 3 Pre-prune：在 LLM 摘要前，将工具输出替换为占位符（减少摘要输入 token）。
+     */
+    private int prePruneForSummary(List<Message> messages) {
+        int pruned = 0;
+        for (int i = 0; i < messages.size(); i++) {
+            if (messages.get(i) instanceof ToolResponseMessage trm) {
+                boolean hasSubstantial = trm.getResponses().stream()
+                        .anyMatch(r -> r.responseData() != null && r.responseData().length() > 200);
+                if (hasSubstantial) {
+                    List<ToolResponseMessage.ToolResponse> placeholders = trm.getResponses().stream()
+                            .map(r -> new ToolResponseMessage.ToolResponse(r.id(), r.name(),
+                                    "[旧工具输出已清理以节省上下文空间]"))
+                            .toList();
+                    messages.set(i, ToolResponseMessage.builder().responses(placeholders).build());
+                    pruned++;
+                }
+            }
+        }
+        return pruned;
+    }
+
+    // ==================== LLM 摘要生成（结构化 + 迭代更新） ====================
+
+    /**
+     * 生成结构化摘要。支持首次压缩和迭代更新两种模式。
+     * 包含冷却机制：LLM 调用失败后 10 分钟内不重试。
+     */
+    private String generateSummary(List<Message> oldMessages, ChatModel chatModel,
+                                   String conversationId, int summaryBudget,
+                                   String memoryExtraContext) {
+        // 冷却检查
+        if (isInSummaryCooldown(conversationId)) {
+            log.info("[ConversationWindow] 摘要在冷却中，跳过 LLM 调用, conv={}", conversationId);
+            return null;
+        }
+
+        try {
+            String conversationText = serializeForSummary(oldMessages);
+
+            // 如果 MemoryProvider 有额外上下文，追加到对话文本中
+            if (memoryExtraContext != null && !memoryExtraContext.isBlank()) {
+                conversationText += "\n\n[Memory Provider 补充上下文]\n" + memoryExtraContext;
+            }
+
+            String previousSummary = previousSummaries.get(conversationId);
+            String systemPrompt;
+            String userPrompt;
+
+            if (previousSummary != null) {
+                // 迭代更新模式：旧摘要 + 新轮次
+                systemPrompt = STRUCTURED_SUMMARY_SYSTEM;
+                userPrompt = STRUCTURED_SUMMARY_UPDATE
+                        .replace("{previous_summary}", previousSummary)
+                        .replace("{conversation}", conversationText)
+                        .replace("{summary_budget}", String.valueOf(summaryBudget));
+                log.debug("[ConversationWindow] 使用迭代更新模式（第 {} 次压缩）, conv={}",
+                        compressionCounts.getOrDefault(conversationId, 0) + 1, conversationId);
+            } else {
+                // 首次压缩
+                systemPrompt = STRUCTURED_SUMMARY_SYSTEM
+                        .replace("{summary_budget}", String.valueOf(summaryBudget));
+                userPrompt = STRUCTURED_SUMMARY_USER
+                        .replace("{conversation}", conversationText);
+                log.debug("[ConversationWindow] 使用首次压缩模式, conv={}", conversationId);
+            }
+
+            List<Message> promptMessages = new ArrayList<>();
+            promptMessages.add(new SystemMessage(systemPrompt));
+            promptMessages.add(new UserMessage(userPrompt));
+
+            ChatOptions options = DashScopeChatOptions.builder()
+                    .withMaxToken(properties.getSummaryMaxTokens())
+                    .build();
+
+            ChatResponse response = chatModel.call(new Prompt(promptMessages, options));
+            if (response != null && response.getResult() != null
+                    && response.getResult().getOutput() != null) {
+                String summary = response.getResult().getOutput().getText();
+                if (summary != null && !summary.isBlank()) {
+                    // 成功：保存摘要供下次迭代更新，清除冷却
+                    previousSummaries.put(conversationId, summary);
+                    clearSummaryCooldown(conversationId);
+                    return summary;
+                }
+            }
+            log.warn("[ConversationWindow] LLM 摘要返回空结果, conv={}", conversationId);
+            setSummaryCooldown(conversationId);
+            return null;
+
+        } catch (Exception e) {
+            log.warn("[ConversationWindow] LLM 摘要生成失败（进入 {} 秒冷却）: {}, conv={}",
+                    SUMMARY_COOLDOWN_MS / 1000, e.getMessage(), conversationId);
+            setSummaryCooldown(conversationId);
+            return null;
+        }
+    }
+
+    // ==================== 消息序列化（智能截断） ====================
+
+    /**
+     * 将消息列表序列化为摘要 LLM 可消化的文本格式。
+     * 长内容做 head+tail 截断，比简单截断保留更多信息。
+     */
+    private String serializeForSummary(List<Message> messages) {
+        StringBuilder sb = new StringBuilder();
+        for (Message msg : messages) {
+            String role = switch (msg) {
+                case UserMessage ignored -> "[USER]";
+                case SystemMessage ignored -> "[SYSTEM]";
+                case AssistantMessage ignored -> "[ASSISTANT]";
+                case ToolResponseMessage ignored -> "[TOOL RESULT]";
+                default -> "[OTHER]";
+            };
+
+            String text = msg.getText();
+            if (text != null && text.length() > CONTENT_MAX) {
+                text = text.substring(0, CONTENT_HEAD)
+                        + "\n...[截断 " + text.length() + " 字符]...\n"
+                        + text.substring(text.length() - CONTENT_TAIL);
+            }
+
+            sb.append(role).append(": ").append(text != null ? text : "").append("\n\n");
+        }
+        return sb.toString();
+    }
+
+    // ==================== 辅助方法 ====================
+
+    /**
      * 二次裁剪：从前往后移除消息直到 token 预算满足。
-     * 至少保留最后 2 条消息（最近一轮对话）。
      */
     private List<Message> trimToFit(List<Message> messages, int budget) {
         int startIndex = 0;
@@ -255,77 +512,17 @@ public class ConversationWindowManager {
         return messages;
     }
 
-    /**
-     * 计算应保留的最近消息条数。
-     * 保留 N 轮对话（每轮 = user + assistant = 2 条），至少保留 2 条。
-     */
-    private int calculatePreserveCount(List<Message> messages) {
-        int pairCount = properties.getPreserveRecentPairs();
-        int preserveCount = pairCount * 2;
-        return Math.max(2, Math.min(preserveCount, messages.size()));
-    }
-
-    /**
-     * 调用 LLM 生成会话摘要，使用 summaryMaxTokens 约束输出长度。
-     * 失败时返回 null（降级为朴素截断）。
-     */
-    private String generateSummary(List<Message> oldMessages, ChatModel chatModel) {
-        try {
-            StringBuilder conversationText = new StringBuilder();
-            for (Message msg : oldMessages) {
-                String role = switch (msg) {
-                    case UserMessage ignored -> "用户";
-                    case SystemMessage ignored -> "系统";
-                    default -> "助手";
-                };
-                String text = msg.getText();
-                // 单条消息截断避免摘要 prompt 本身过长
-                if (text != null && text.length() > 2000) {
-                    text = text.substring(0, 2000) + "...[已截断]";
-                }
-                conversationText.append(role).append(": ").append(text).append("\n\n");
-            }
-
-            String userPrompt = SUMMARY_USER_TEMPLATE
-                    .replace("{conversation}", conversationText.toString());
-
-            List<Message> promptMessages = new ArrayList<>();
-            promptMessages.add(new SystemMessage(SUMMARY_SYSTEM_PROMPT));
-            promptMessages.add(new UserMessage(userPrompt));
-
-            // 使用 summaryMaxTokens 约束摘要输出长度
-            ChatOptions options = DashScopeChatOptions.builder()
-                    .withMaxToken(properties.getSummaryMaxTokens())
-                    .build();
-
-            ChatResponse response = chatModel.call(new Prompt(promptMessages, options));
-            if (response != null && response.getResult() != null
-                    && response.getResult().getOutput() != null) {
-                return response.getResult().getOutput().getText();
-            }
-            log.warn("[ConversationWindow] LLM 摘要返回空结果");
-            return null;
-        } catch (Exception e) {
-            log.warn("[ConversationWindow] LLM 摘要生成失败，降级为朴素截断: {}", e.getMessage());
-            return null;
-        }
-    }
+    // ==================== PTL 紧急压缩 ====================
 
     /**
      * PTL (Prompt Too Long) 恢复用的紧急压缩。
-     * <p>
-     * 当 LLM 返回 context_length_exceeded 错误时，由 Node 层调用此方法
-     * 对消息列表做更激进的裁剪（保留最近 2 轮 + 朴素截断，不调用 LLM 摘要）。
-     *
-     * @param messages 原始消息列表
-     * @return 压缩后的消息列表，如果无法压缩返回 null
+     * 不调用 LLM 摘要，直接丢弃较旧消息，只保留最近 4 条。
      */
     public List<Message> compactForRetry(List<Message> messages) {
         if (messages == null || messages.size() <= 2) {
             return null;
         }
 
-        // 紧急模式：不调用 LLM 摘要，直接丢弃较旧消息，只保留最近 2 对 (4 条)
         int preserveCount = Math.min(4, messages.size());
         int splitPoint = messages.size() - preserveCount;
 
@@ -339,16 +536,27 @@ public class ConversationWindowManager {
         return recentMessages;
     }
 
-    /**
-     * 清理过期缓存条目
-     */
+    // ==================== 冷却机制 ====================
+
+    private boolean isInSummaryCooldown(String conversationId) {
+        Long until = summaryCooldownUntil.get(conversationId);
+        return until != null && System.currentTimeMillis() < until;
+    }
+
+    private void setSummaryCooldown(String conversationId) {
+        summaryCooldownUntil.put(conversationId, System.currentTimeMillis() + SUMMARY_COOLDOWN_MS);
+    }
+
+    private void clearSummaryCooldown(String conversationId) {
+        summaryCooldownUntil.remove(conversationId);
+    }
+
+    // ==================== 缓存管理 ====================
+
     private void evictExpiredEntries() {
         summaryCache.entrySet().removeIf(entry -> entry.getValue().isExpired(CACHE_TTL_MS));
     }
 
-    /**
-     * 缓存条目
-     */
     record CachedSummary(String summary, long createdAt) {
         boolean isExpired(long ttlMs) {
             return System.currentTimeMillis() - createdAt > ttlMs;

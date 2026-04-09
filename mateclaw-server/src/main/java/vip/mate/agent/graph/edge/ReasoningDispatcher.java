@@ -52,9 +52,10 @@ public class ReasoningDispatcher implements EdgeAction {
             return FINAL_ANSWER_NODE;
         }
 
-        // 3. LLM 调用次数超限 — 仅拦截继续循环（工具调用/总结）的路径
+        // 3. LLM 调用次数超限 — 仅拦截继续循环（工具调用/总结）的路径（maxIterations=0 不限制）
         int llmCallCount = accessor.llmCallCount();
-        int llmCallLimit = accessor.maxIterations() * LLM_CALL_MULTIPLIER;
+        int maxIter = accessor.maxIterations();
+        int llmCallLimit = maxIter > 0 ? maxIter * LLM_CALL_MULTIPLIER : Integer.MAX_VALUE;
         if (llmCallCount >= llmCallLimit) {
             log.warn("[ReasoningDispatcher] LLM call count limit reached ({}/{}), " +
                             "routing to limitExceededNode instead of continuing loop",

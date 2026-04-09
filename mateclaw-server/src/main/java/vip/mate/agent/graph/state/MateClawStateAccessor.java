@@ -57,11 +57,12 @@ public final class MateClawStateAccessor {
     }
 
     public int maxIterations() {
-        return state.value(MAX_ITERATIONS, 10);
+        return state.value(MAX_ITERATIONS, 25);
     }
 
     public boolean isLimitReached() {
-        return iterationCount() >= maxIterations();
+        int max = maxIterations();
+        return max > 0 && iterationCount() >= max; // max=0 表示不限制
     }
 
     // ===== 工具调用 =====

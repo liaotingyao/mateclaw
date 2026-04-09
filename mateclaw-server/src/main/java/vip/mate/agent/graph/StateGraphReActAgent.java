@@ -341,13 +341,16 @@ public class StateGraphReActAgent extends BaseAgent implements StructuredStreamC
 
         // 上下文窗口管理：裁剪超出模型 context window 的历史（含当前消息预算）
         if (conversationWindowManager != null) {
+            Long parsedAgentId = null;
+            try { parsedAgentId = Long.valueOf(agentId); } catch (Exception ignored) {}
             historyMessages = conversationWindowManager.fitToWindow(
                     historyMessages,
                     systemPrompt != null ? systemPrompt : "",
                     userMessage,
                     maxInputTokens,
                     chatModel,
-                    conversationId);
+                    conversationId,
+                    parsedAgentId);
         }
 
         List<Message> messages = new ArrayList<>(historyMessages);

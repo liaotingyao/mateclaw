@@ -15,6 +15,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.concurrent.CancellationException;
 import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.ThreadLocalRandom;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
@@ -97,9 +98,9 @@ public class NodeStreamingChatHelper {
 
     // ==================== 重试配置 ====================
 
-    private static final int MAX_RETRIES = 3;
-    private static final long BACKOFF_BASE_MS = 1000;
-    private static final long BACKOFF_CAP_MS = 10_000;
+    private static final int MAX_RETRIES = 5;
+    private static final long BACKOFF_BASE_MS = 3000;
+    private static final long BACKOFF_CAP_MS = 60_000;
 
     /**
      * 判断错误是否可重试（基于状态码/异常类型）
@@ -246,8 +247,16 @@ public class NodeStreamingChatHelper {
                                        boolean broadcast, int attempt) {
         if (attempt > 0) {
             long delay = Math.min(BACKOFF_BASE_MS * (1L << (attempt - 1)), BACKOFF_CAP_MS);
+            // 加入 jitter 防止雷群效应（Hermes 风格）
+            delay += ThreadLocalRandom.current().nextLong(0, Math.max(1, delay / 2));
+            delay = Math.min(delay, BACKOFF_CAP_MS);
             log.warn("[{}] Retry attempt {}/{} after {}ms for conversation {}",
                     phase, attempt, MAX_RETRIES, delay, conversationId);
+            // 广播给前端：用户可见的重试倒计时
+            if (broadcast) {
+                broadcastDelta(conversationId, "warning",
+                        buildDeltaJson("⏱️ 请求频率受限，等待 " + (delay / 1000) + " 秒后重试（第 " + attempt + "/" + MAX_RETRIES + " 次）..."));
+            }
             try {
                 Thread.sleep(delay);
             } catch (InterruptedException ie) {

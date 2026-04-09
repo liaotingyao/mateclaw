@@ -315,7 +315,7 @@ public class AgentGraphBuilder {
                     .addEdge(PlanStateKeys.DIRECT_ANSWER_NODE, StateGraph.END);
 
             return graph.compile(CompileConfig.builder()
-                    .recursionLimit(maxIterations * 3 + 10)
+                    .recursionLimit(maxIterations > 0 ? maxIterations * 3 + 10 : 300)
                     .build());
         } catch (Exception e) {
             throw new MateClawException("Plan-Execute StateGraph 编译失败: " + e.getMessage());
@@ -424,7 +424,7 @@ public class AgentGraphBuilder {
                     .addEdge(MateClawStateKeys.FINAL_ANSWER_NODE, StateGraph.END);
 
             return graph.compile(CompileConfig.builder()
-                    .recursionLimit(maxIterations * 3 + 10)
+                    .recursionLimit(maxIterations > 0 ? maxIterations * 3 + 10 : 300)
                     .withLifecycleListener(new ReActLifecycleListener())
                     .build());
         } catch (Exception e) {

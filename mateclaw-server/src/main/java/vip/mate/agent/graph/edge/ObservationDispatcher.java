@@ -38,8 +38,8 @@ public class ObservationDispatcher implements EdgeAction {
             return FINAL_ANSWER_NODE;
         }
 
-        // 1. 迭代超限检查
-        if (currentIteration >= maxIterations) {
+        // 1. 迭代超限检查（maxIterations=0 表示不限制）
+        if (maxIterations > 0 && currentIteration >= maxIterations) {
             log.warn("[ObservationDispatcher] Max iterations ({}) reached at iteration {}, " +
                     "routing to limitExceededNode", maxIterations, currentIteration);
             return LIMIT_EXCEEDED_NODE;
