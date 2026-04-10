@@ -28,36 +28,40 @@
 
 ---
 
-MateClaw is a personal AI operating system built with **Java + Vue 3**, powered by [Spring AI Alibaba](https://github.com/alibaba/spring-ai-alibaba).
+An AI agent. A knowledge engine. A memory system. A tool runtime. A multi-channel presence.
 
-Not another chatbox. A complete system where AI agents reason, use tools, build memory, digest knowledge into Wiki pages, create multimodal content, and show up across every channel where work happens.
+**One product. The whole widget.**
 
-Three things make it different:
+MateClaw is a personal AI operating system built with **Java + Vue 3**, powered by [Spring AI Alibaba](https://github.com/alibaba/spring-ai-alibaba). It's not a chatbox, not a workflow builder, not just another coding assistant. It's the entire system — from reasoning to remembering to shipping — in one deployment.
 
-1. **Agents do work, not just talk** — ReAct loops and Plan-and-Execute for real task completion
-2. **Knowledge is shaped, not just stored** — An LLM-powered Wiki that digests raw material into structured, linked pages
-3. **The whole widget** — One team, one deployment, from desktop app to IM channels — end-to-end
+Three things make it insanely different:
+
+1. **Agents do work, not just talk** — ReAct + Plan-and-Execute. Not one-shot answers — iterative reasoning that actually completes tasks
+2. **Knowledge is shaped, not just stored** — An LLM Wiki that digests raw material into structured, linked pages. The difference between a warehouse and a library
+3. **End-to-end, no compromises** — Web console, desktop app, 7 IM channels, tool guardrails, enterprise auth. One team, one deployment, one experience
 
 ---
 
 ## Why MateClaw
 
-Most open-source AI tools do one thing well. MateClaw does the whole thing.
+Most AI tools do one thing well. MateClaw does the whole thing.
 
-| Capability | MateClaw | [Dify](https://github.com/langgenius/dify) | [LobeChat](https://github.com/lobehub/lobe-chat) | [FastGPT](https://github.com/labring/FastGPT) | [NextChat](https://github.com/ChatGPTNextWeb/NextChat) | [MaxKB](https://github.com/1Panel-dev/MaxKB) | [Open WebUI](https://github.com/open-webui/open-webui) |
+| Capability | MateClaw | [OpenClaw](https://github.com/openclaw/openclaw) | [CoPaw](https://github.com/agentscope-ai/CoPaw) | QClaw | [Claude Code](https://github.com/anthropics/claude-code) | [Cursor](https://cursor.com) | [Windsurf](https://windsurf.com) |
 |:---|:---:|:---:|:---:|:---:|:---:|:---:|:---:|
-| Agent (ReAct + Plan-Execute) | **Yes** | ReAct only | Partial | No | No | No | No |
-| LLM Wiki Knowledge Base | **Yes** | RAG only | RAG only | RAG only | No | RAG only | RAG only |
-| Compound Memory System | **Yes** | No | No | No | No | No | No |
-| MCP Protocol | **Yes** | Plugin | Yes | Yes | No | Yes | No |
+| Multi-Agent Orchestration | **ReAct + Plan-Execute** | Single agent | Single agent | Single agent | Parallel agents | Background agents | Cascade engine |
+| LLM Wiki Knowledge Base | **Yes** | No | No | Knowledge graph | No | No | No |
+| Compound Memory | **Extract + Consolidate + Dream** | Plugin-based | ReMe memory | Plugin-based | Auto-memory | No | Session only |
 | Tool Guard & Approval | **Yes** | No | No | No | No | No | No |
-| Skill Marketplace | **Yes** | Plugin Market | Plugin Store | No | No | No | No |
-| Multi-Channel IM | **7 channels** | Webhook only | 2 channels | No | No | No | No |
-| Desktop App | **Electron + JRE** | No | PWA only | No | Yes | No | No |
-| Multimodal Creation | **TTS/STT/Img/Music/Video** | No | TTS/Img | No | No | I/O only | No |
-| Tech Stack | Java + Vue 3 | Python + Next.js | TypeScript + Next.js | TypeScript + Next.js | TypeScript + Next.js | Python + Vue | Python + Svelte |
+| Multi-Channel IM | **7 channels** | 25+ channels | 5+ channels | WeChat/QQ | Terminal only | IDE only | IDE only |
+| Web Management UI | **Full dashboard** | No | Limited | No | No | No | No |
+| Desktop App | **Electron + JRE** | CLI | CLI | CLI | CLI | Yes | Yes |
+| Multimodal Creation | **TTS/STT/Img/Music/Video** | No | No | No | No | No | No |
+| Skill Marketplace | **ClawHub** | Plugin system | Python skills | Templates | MCP skills | No | MCP |
+| Enterprise Auth | **RBAC + JWT** | No | No | No | No | Teams plan | Teams plan |
+| Open Source | **Apache 2.0** | Yes | Yes | Partial | CLI only | No | No |
+| Pricing | **Free** | Free | Free | Unreleased | Token-based | $0–200/mo | $0–60/mo |
 
-> **The difference**: Others give you a chat UI or a workflow builder. MateClaw gives you an AI operating system — agents that reason, remember, use tools with guardrails, and show up everywhere your work happens.
+> **The difference**: OpenClaw gives you channels. Claude Code gives you a terminal. Cursor gives you an editor. MateClaw gives you an AI operating system — agents that reason, remember, create, and show up everywhere your work happens. With a management dashboard. For free.
 
 ---
 

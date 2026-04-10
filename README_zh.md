@@ -28,36 +28,40 @@
 
 ---
 
-MateClaw 是一个基于 **Java + Vue 3** 构建的个人 AI 操作系统，由 [Spring AI Alibaba](https://github.com/alibaba/spring-ai-alibaba) 驱动。
+一个智能体引擎。一个知识系统。一个记忆层。一个工具运行时。一个多渠道入口。
 
-不是又一个聊天框。这是一个完整的 AI 工作系统——智能体能推理、用工具、构建记忆、把原始资料消化成 Wiki、创作多模态内容，还能出现在每一个真正发生工作的渠道里。
+**一个产品。完整交付。**
 
-三件事让它与众不同：
+MateClaw 是基于 **Java + Vue 3** 构建的个人 AI 操作系统，由 [Spring AI Alibaba](https://github.com/alibaba/spring-ai-alibaba) 驱动。它不是聊天框，不是工作流编排器，不只是又一个编码助手。它是从推理到记忆到交付的完整系统——一次部署，全部搞定。
 
-1. **智能体做事，不只聊天** — ReAct 循环推理 + 计划执行，完成真正的任务
-2. **知识被塑造，而非仅仅被存储** — LLM 驱动的 Wiki 把原始资料消化成结构化的链接页面
-3. **端到端整合** — 一个团队、一次部署，从桌面端到 IM 渠道的完整体验控制
+三件事让它截然不同：
+
+1. **智能体做事，不只聊天** — ReAct + 计划执行。不是一问一答——是迭代推理，直到任务真正完成
+2. **知识被塑造，而非仅仅被存储** — LLM Wiki 把原始资料消化成结构化的链接页面。仓库和图书馆的区别
+3. **端到端，不妥协** — Web 控制台、桌面端、7 个 IM 渠道、工具防护、企业认证。一个团队、一次部署、一个体验
 
 ---
 
 ## 为什么选 MateClaw
 
-大多数开源 AI 工具只做好一件事。MateClaw 做好整件事。
+大多数 AI 工具只做好一件事。MateClaw 做好整件事。
 
-| 能力 | MateClaw | [Dify](https://github.com/langgenius/dify) | [LobeChat](https://github.com/lobehub/lobe-chat) | [FastGPT](https://github.com/labring/FastGPT) | [NextChat](https://github.com/ChatGPTNextWeb/NextChat) | [MaxKB](https://github.com/1Panel-dev/MaxKB) | [Open WebUI](https://github.com/open-webui/open-webui) |
+| 能力 | MateClaw | [OpenClaw](https://github.com/openclaw/openclaw) | [CoPaw](https://github.com/agentscope-ai/CoPaw) | QClaw | [Claude Code](https://github.com/anthropics/claude-code) | [Cursor](https://cursor.com) | [Windsurf](https://windsurf.com) |
 |:---|:---:|:---:|:---:|:---:|:---:|:---:|:---:|
-| 智能体 (ReAct + 计划执行) | **完整支持** | 仅 ReAct | 部分 | 无 | 无 | 无 | 无 |
-| LLM Wiki 知识库 | **原创** | 仅 RAG | 仅 RAG | 仅 RAG | 无 | 仅 RAG | 仅 RAG |
-| 复合记忆系统 | **完整支持** | 无 | 无 | 无 | 无 | 无 | 无 |
-| MCP 协议 | **完整支持** | 插件 | 支持 | 支持 | 无 | 支持 | 无 |
+| 多智能体编排 | **ReAct + 计划执行** | 单智能体 | 单智能体 | 单智能体 | 并行 Agent | 后台 Agent | Cascade 引擎 |
+| LLM Wiki 知识库 | **原创** | 无 | 无 | 知识图谱 | 无 | 无 | 无 |
+| 复合记忆 | **提取 + 整理 + 涌现** | 插件依赖 | ReMe 记忆 | 插件依赖 | 自动记忆 | 无 | 仅会话 |
 | 工具防护与审批 | **完整支持** | 无 | 无 | 无 | 无 | 无 | 无 |
-| 技能市场 | **ClawHub** | 插件市场 | 插件商店 | 无 | 无 | 无 | 无 |
-| 多渠道 IM | **7 个渠道** | 仅 Webhook | 2 个 | 无 | 无 | 无 | 无 |
-| 桌面端 | **Electron + JRE** | 无 | 仅 PWA | 无 | 有 | 无 | 无 |
-| 多模态创作 | **TTS/STT/图/音乐/视频** | 无 | TTS/图片 | 无 | 无 | 仅 I/O | 无 |
-| 技术栈 | Java + Vue 3 | Python + Next.js | TypeScript + Next.js | TypeScript + Next.js | TypeScript + Next.js | Python + Vue | Python + Svelte |
+| 多渠道 IM | **7 个渠道** | 25+ 渠道 | 5+ 渠道 | 微信/QQ | 仅终端 | 仅 IDE | 仅 IDE |
+| Web 管理界面 | **完整仪表盘** | 无 | 有限 | 无 | 无 | 无 | 无 |
+| 桌面端 | **Electron + JRE** | CLI | CLI | CLI | CLI | 有 | 有 |
+| 多模态创作 | **TTS/STT/图/音乐/视频** | 无 | 无 | 无 | 无 | 无 | 无 |
+| 技能市场 | **ClawHub** | 插件系统 | Python 技能 | 模板 | MCP 技能 | 无 | MCP |
+| 企业认证 | **RBAC + JWT** | 无 | 无 | 无 | 无 | 团队版 | 团队版 |
+| 开源 | **Apache 2.0** | 是 | 是 | 部分 | 仅 CLI | 否 | 否 |
+| 定价 | **免费** | 免费 | 免费 | 未发布 | 按量付费 | $0–200/月 | $0–60/月 |
 
-> **差异在哪？** 别人给你一个聊天界面或工作流编排器。MateClaw 给你一个 AI 操作系统——智能体能推理、能记忆、用工具有防护、出现在你工作发生的每一个地方。
+> **差异在哪？** OpenClaw 给你渠道。Claude Code 给你终端。Cursor 给你编辑器。MateClaw 给你一个 AI 操作系统——智能体能推理、能记忆、能创作，出现在你工作发生的每一个地方。有管理仪表盘。免费。
 
 ---
 
