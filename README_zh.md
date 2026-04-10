@@ -48,30 +48,30 @@ MateClaw 是基于 **Java + Vue 3** 构建的个人 AI 操作系统，由 [Sprin
 
 | 能力 | MateClaw | [OpenClaw](https://github.com/openclaw/openclaw) | [CoPaw](https://github.com/agentscope-ai/CoPaw) | [QClaw](https://cntechpost.com/2026/03/20/tencent-opens-qclaw-public-testing-amid-fierce-ai-rivalry/) | [Claude Code](https://github.com/anthropics/claude-code) | [Cursor](https://cursor.com) | [Windsurf](https://windsurf.com) |
 |:---|:---:|:---:|:---:|:---:|:---:|:---:|:---:|
-| 智能体编排 | **ReAct + 计划执行** | 多智能体团队 | 多智能体协作 | 专家智能体 | 并行 Agent | 后台 Agent | Cascade 引擎 |
-| 知识系统 | **LLM Wiki（消化式）** | Intelligence Mode + Wiki | 个人知识库 | 知识图谱 | 无 | 无 | 无 |
-| 记忆 | **提取 + 整理 + 涌现** | SQLite + Dreaming + Wiki | ReMe（混合检索） | 三层记忆 | 自动记忆 | 无 | 仅会话 |
-| 工具防护与审批 | **RBAC + 审批流** | HITL + 风险等级 | 无 | 无 | 无 | 无 | 无 |
-| 多渠道 IM | **7 个渠道** | 25+ 渠道 | 7 个渠道 | 5 个渠道 | 仅终端 | 仅 IDE | 仅 IDE |
-| Web 管理界面 | **完整管理仪表盘** | Control UI | Console UI | 控制面板 | 无 | 无 | 无 |
-| 桌面端 | **Electron + 内嵌 JRE** | macOS 菜单栏 | Electron（Beta） | Win/Mac 应用 | CLI | 有 | 有 |
-| 多模态创作 | **TTS/STT/图/音乐/视频** | TTS/视频/音乐/图片 | 视觉输入 | 无 | 无 | 无 | 无 |
-| 技能生态 | **ClawHub 市场** | ClawHub 注册表 | Python 技能 | 模板 | MCP 技能 | 无 | MCP |
-| 企业认证 | **RBAC + JWT** | 基础（密码） | 基础认证 | 无 | 无 | 团队版 | 团队版 |
-| 开源 | **Apache 2.0** | MIT | Apache 2.0 | 部分 | 仅 CLI | 否 | 否 |
-| 定价 | **免费** | 免费 | 免费 | 免费（公测） | 按量付费 | $0–200/月 | $0–60/月 |
-| 技术栈 | **Java + Vue 3** | TypeScript | Python + TS | OpenClaw 衍生 | TypeScript | Electron | Electron |
+| 智能体编排 | **ReAct + 计划执行** | 多智能体团队 | 多智能体协作 | 专家智能体 | Agent Teams + 子智能体 | 后台 Agent（云端 VM） | Cascade 引擎 |
+| 知识系统 | **LLM Wiki（消化式）** | Intelligence Mode + Wiki | 个人知识库 | 知识图谱 | CLAUDE.md（无 RAG） | 代码库索引 | 无 |
+| 记忆 | **提取 + 整理 + 涌现** | SQLite + Dreaming + Wiki | ReMe（混合检索） | 三层记忆 | 三层（CLAUDE.md + 自动 + 文件） | 无持久记忆 | Memories（~48h 学习） |
+| 工具防护与审批 | **RBAC + 审批流** | HITL + 风险等级 | 无 | 无 | 权限 + 沙箱 + Hooks | 无 | Turbo Mode（自动放行） |
+| 多渠道 IM | **7 个渠道** | 25+ 渠道 | 7 个渠道 | 5 个渠道 | 3 个渠道（预览） | 仅 IDE | 仅 IDE |
+| Web 管理界面 | **完整管理仪表盘** | Control UI | Console UI | 控制面板 | 企业版仪表盘 | 无 | 无 |
+| 桌面端 | **Electron + 内嵌 JRE** | macOS 菜单栏 | Electron（Beta） | Win/Mac 应用 | Claude Desktop（Mac/Win） | VS Code 分支 | VS Code 分支 |
+| 多模态创作 | **TTS/STT/图/音乐/视频** | TTS/视频/音乐/图片 | 视觉输入 | 无 | 仅视觉输入 | 无 | 无 |
+| 技能生态 | **ClawHub 市场** | ClawHub 注册表 | Python 技能 | 模板 | 340+ 插件, 1300+ 技能 | MCP 市场 | MCP 一键集成 |
+| 企业认证 | **RBAC + JWT** | 基础（密码） | 基础认证 | 无 | SSO/SCIM/RBAC | SSO + 团队版 | 团队版 |
+| 开源 | **Apache 2.0** | MIT | Apache 2.0 | 部分 | 否（源码可见） | 否 | 否 |
+| 定价 | **免费** | 免费 | 免费 | 免费（公测） | $20–200/月 | $0–200/月 | $0–200/月 |
+| 技术栈 | **Java + Vue 3** | TypeScript | Python + TS | OpenClaw 衍生 | TypeScript | Electron (VS Code) | Electron (VS Code) |
 
 **MateClaw 的差异化在哪？**
 
-这张表里的每个产品都有自己的强项。MateClaw 的独特空间在这里：
+这张表里的每个产品都有真正的实力。MateClaw 的独特空间在这里：
 
-- **计划-执行编排** — 不只是 ReAct 循环。把复杂工作分解为有序步骤，逐一执行，执行中动态调整计划。大多数竞品止步于单轮 Agent 调用
+- **计划-执行编排** — 把复杂工作分解为有序步骤，逐一执行，动态调整计划。别人有多智能体，但结构化任务规划+动态重规划是稀缺能力
 - **LLM Wiki 消化式知识库** — 别人索引和搜索。MateClaw 的 Wiki 把原始资料转化为结构化、有链接的页面——搜索引擎和百科全书的区别
-- **Java 生态** — 为已经在生产环境运行 Spring Boot 的团队而生。无需 Python 运行时，无需 Node.js 依赖链。一个 JAR，一次部署
-- **完整的管理体验** — 智能体、模型、工具、技能、渠道、安全、定时任务、Token 用量的完整仪表盘。不是 CLI 优先的附属品
-- **多模态创作套件** — TTS、STT、图片、音乐、视频生成内置。不是插件——是一等公民
-- **永久免费** — Apache 2.0。无按量计费，无按席收费，无功能阉割
+- **Java 生态** — 为已经在生产环境运行 Spring Boot 的团队而生。一个 JAR，一次部署。无需 Python 运行时，无需 Node.js 依赖链
+- **完整管理仪表盘** — 智能体、模型、工具、技能、渠道、安全、定时任务、Token 用量——全在一个 Web 界面。不是 CLI 优先的附属品
+- **完整多模态创作** — TTS、STT、图片、音乐、视频生成作为内置一等功能。OpenClaw 在这方面同样强；其他竞品不具备
+- **免费开源，没有星号** — Apache 2.0。无按量计费，无按席收费，无功能阉割。Claude Code 起步 $20/月，Cursor 和 Windsurf 最高 $200/月
 
 ---
 
