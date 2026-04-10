@@ -106,10 +106,7 @@
               <div class="user-role">{{ roleLabel }}</div>
             </div>
             <button class="logout-btn" @click="logout" :title="t('nav.logout')">
-              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/>
-                <polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/>
-              </svg>
+              <el-icon :size="16"><SwitchButton /></el-icon>
             </button>
           </div>
         </template>
@@ -119,62 +116,10 @@
             <button class="footer-icon-btn" :class="healthStatus" @click="showDoctor = true" :title="t('doctor.title')">
               <span class="health-dot"></span>
             </button>
-            <button class="footer-icon-btn footer-icon-btn--accent" :title="t('nav.appearance')" @click="footerPanelOpen = !footerPanelOpen">
-              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                <path d="M12 20h9"/><path d="M12 4h9"/><path d="M4 9h16"/><path d="M4 15h16"/><circle cx="8" cy="4" r="2"/><circle cx="16" cy="20" r="2"/><circle cx="6" cy="15" r="2"/><circle cx="18" cy="9" r="2"/>
-              </svg>
+            <button class="footer-icon-btn" :title="t('nav.logout')" @click="logout">
+              <el-icon :size="16"><SwitchButton /></el-icon>
             </button>
           </div>
-
-          <Transition name="fade">
-            <div v-if="footerPanelOpen" class="sidebar-utility-panel">
-              <div class="panel-section">
-                <div class="utility-label">{{ t('nav.themeLabel') }}</div>
-                <div class="panel-option-list">
-                  <button
-                    v-for="opt in themeOptions"
-                    :key="opt.value"
-                    class="panel-option-btn"
-                    :class="{ active: themeStore.mode === opt.value }"
-                    @click="themeStore.setMode(opt.value)"
-                  >
-                    <span class="panel-option-icon" v-html="opt.icon"></span>
-                    <span>{{ opt.label }}</span>
-                  </button>
-                </div>
-              </div>
-
-              <div class="panel-section">
-                <div class="utility-label">{{ t('nav.languageLabel') }}</div>
-                <div class="panel-option-list">
-                  <button
-                    v-for="opt in localeOptions"
-                    :key="opt.value"
-                    class="panel-option-btn"
-                    :class="{ active: currentLocaleValue === opt.value }"
-                    @click="changeLocale(opt.value)"
-                  >
-                    <span class="language-abbr">{{ opt.short }}</span>
-                    <span>{{ opt.label }}</span>
-                  </button>
-                </div>
-              </div>
-
-              <div class="panel-user">
-                <div class="user-avatar">{{ userInitial }}</div>
-                <div class="panel-user-meta">
-                  <div class="user-name">{{ username }}</div>
-                  <div class="user-role">{{ roleLabel }}</div>
-                </div>
-                <button class="logout-btn logout-btn--panel" @click="logout" :title="t('nav.logout')">
-                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                    <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/>
-                    <polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/>
-                  </svg>
-                </button>
-              </div>
-            </div>
-          </Transition>
         </template>
       </div>
     </aside>
@@ -213,6 +158,7 @@ import DoctorDrawer from '@/views/Doctor/DoctorDrawer.vue'
 import WorkspaceSwitcher from '@/components/workspace/WorkspaceSwitcher.vue'
 import { useWorkspaceStore } from '@/stores/useWorkspaceStore'
 import { applyLocale, currentLocale, type AppLocale } from '@/i18n'
+import { SwitchButton } from '@element-plus/icons-vue'
 
 const router = useRouter()
 const route = useRoute()

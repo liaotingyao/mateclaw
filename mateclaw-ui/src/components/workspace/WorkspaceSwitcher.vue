@@ -1,9 +1,10 @@
 <template>
   <div class="workspace-switcher" :class="{ collapsed }">
     <button
+      ref="triggerRef"
       class="ws-trigger"
       :title="collapsed ? currentLabel : ''"
-      @click="open = !open"
+      @click="toggleOpen"
     >
       <span class="ws-trigger__icon">
         <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
@@ -17,11 +18,12 @@
       </template>
     </button>
 
-    <Transition name="fade">
-      <div v-if="open" class="ws-backdrop" @click="open = false"></div>
-    </Transition>
-    <Transition name="ws-dropdown">
-      <div v-if="open" class="ws-dropdown">
+    <Teleport to="body">
+      <Transition name="fade">
+        <div v-if="open" class="ws-backdrop" @click="open = false"></div>
+      </Transition>
+      <Transition name="ws-dropdown">
+        <div v-if="open" class="ws-dropdown" :class="{ 'ws-dropdown--collapsed': collapsed }" :style="dropdownStyle">
         <div
           v-for="ws in workspaces"
           :key="ws.id"
@@ -45,16 +47,17 @@
         </div>
       </div>
     </Transition>
+    </Teleport>
   </div>
 </template>
 
 <script setup lang="ts">
-import { ref, computed, onMounted } from 'vue'
+import { ref, computed, onMounted, nextTick } from 'vue'
 import { useRouter } from 'vue-router'
 import { useI18n } from 'vue-i18n'
 import { useWorkspaceStore } from '@/stores/useWorkspaceStore'
 
-defineProps<{
+const props = defineProps<{
   collapsed?: boolean
 }>()
 
@@ -62,6 +65,40 @@ const { t } = useI18n()
 const store = useWorkspaceStore()
 const router = useRouter()
 const open = ref(false)
+const triggerRef = ref<HTMLElement | null>(null)
+const dropdownPos = ref({ top: 0, left: 0 })
+
+const dropdownStyle = computed(() => {
+  return {
+    position: 'fixed' as const,
+    top: `${dropdownPos.value.top}px`,
+    left: `${dropdownPos.value.left}px`,
+    right: 'auto',
+    width: props.collapsed ? '200px' : '212px',
+  }
+})
+
+function toggleOpen() {
+  open.value = !open.value
+  if (open.value && triggerRef.value) {
+    nextTick(() => {
+      const triggerRect = triggerRef.value!.getBoundingClientRect()
+      if (props.collapsed) {
+        const sidebar = triggerRef.value!.closest('.sidebar')
+        const sidebarRight = sidebar ? sidebar.getBoundingClientRect().right : triggerRect.right
+        dropdownPos.value = {
+          top: triggerRect.top,
+          left: sidebarRight + 6,
+        }
+      } else {
+        dropdownPos.value = {
+          top: triggerRect.bottom + 4,
+          left: triggerRect.left,
+        }
+      }
+    })
+  }
+}
 const workspaces = computed(() => store.workspaces)
 const currentWorkspaceId = computed(() => store.currentWorkspaceId)
 const currentLabel = computed(() => store.currentWorkspace?.name || 'Workspace')
@@ -152,20 +189,22 @@ function onManage() {
   transform: rotate(180deg);
 }
 
-/* Backdrop */
+/* Transitions */
+.fade-enter-active, .fade-leave-active { transition: opacity 0.15s; }
+.fade-enter-from, .fade-leave-to { opacity: 0; }
+.ws-dropdown-leave-to { opacity: 0; transform: translateY(-4px) scale(0.98); }
+</style>
+
+<style>
+/* Teleported to body — must be non-scoped */
 .ws-backdrop {
   position: fixed;
   inset: 0;
-  z-index: 99;
+  z-index: 199;
 }
 
-/* Dropdown */
 .ws-dropdown {
-  position: absolute;
-  top: calc(100% + 4px);
-  left: 12px;
-  right: 12px;
-  z-index: 100;
+  z-index: 200;
   background: var(--mc-bg-elevated);
   border: 1px solid var(--mc-border);
   border-radius: 14px;
@@ -175,13 +214,7 @@ function onManage() {
   overflow-y: auto;
 }
 
-.collapsed .ws-dropdown {
-  left: 6px;
-  right: auto;
-  min-width: 200px;
-}
-
-.ws-item {
+.ws-dropdown .ws-item {
   display: flex;
   align-items: center;
   gap: 10px;
@@ -193,55 +226,51 @@ function onManage() {
   color: var(--mc-text-primary);
 }
 
-.ws-item:hover {
+.ws-dropdown .ws-item:hover {
   background: var(--mc-bg-sunken);
 }
 
-.ws-item.active {
+.ws-dropdown .ws-item.active {
   background: var(--mc-primary-bg);
   color: var(--mc-primary);
   font-weight: 600;
 }
 
-.ws-item__icon {
+.ws-dropdown .ws-item__icon {
   flex-shrink: 0;
   opacity: 0.5;
 }
 
-.ws-item.active .ws-item__icon {
+.ws-dropdown .ws-item.active .ws-item__icon {
   opacity: 1;
   color: var(--mc-primary);
 }
 
-.ws-item__name {
+.ws-dropdown .ws-item__name {
   flex: 1;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
 
-.ws-item__check {
+.ws-dropdown .ws-item__check {
   flex-shrink: 0;
   color: var(--mc-primary);
 }
 
-.ws-divider {
+.ws-dropdown .ws-divider {
   height: 1px;
   background: var(--mc-border-light);
   margin: 4px 8px;
 }
 
-.ws-item--manage {
+.ws-dropdown .ws-item--manage {
   color: var(--mc-text-secondary);
 }
 
-.ws-item--manage:hover {
+.ws-dropdown .ws-item--manage:hover {
   color: var(--mc-text-primary);
 }
-
-/* Transitions */
-.fade-enter-active, .fade-leave-active { transition: opacity 0.15s; }
-.fade-enter-from, .fade-leave-to { opacity: 0; }
 
 .ws-dropdown-enter-active { transition: all 0.15s ease-out; }
 .ws-dropdown-leave-active { transition: all 0.1s ease-in; }
