@@ -129,6 +129,14 @@ export function useChat(options: UseChatOptions): UseChatReturn {
   const heartbeat = ref<HeartbeatData | null>(null)
   /** Track which conversation the current stream belongs to */
   let streamConversationId = ''
+  /** 判断事件是否属于已过期的对话（防止旧流事件污染新会话） */
+  function isStaleEvent(data: any): boolean {
+    const eventConvId = data?.conversationId
+    if (eventConvId && streamConversationId && eventConvId !== streamConversationId) {
+      return true
+    }
+    return false
+  }
   /** 已处理的 approval pendingId 集合（幂等去重） */
   const processedApprovalIds = new Set<string>()
 
@@ -191,6 +199,7 @@ export function useChat(options: UseChatOptions): UseChatReturn {
   // ===== SSE 事件处理器 =====
 
   stream.on('content_delta', (data) => {
+    if (isStaleEvent(data)) return
     if (currentAssistantId.value) {
       appendMessageContent(currentAssistantId.value, data.delta || '', 'text')
       if (['thinking', 'reasoning', 'drafting_answer', 'preparing_context'].includes(streamPhase.value)) {
@@ -212,6 +221,7 @@ export function useChat(options: UseChatOptions): UseChatReturn {
   })
 
   stream.on('thinking_delta', (data) => {
+    if (isStaleEvent(data)) return
     if (currentAssistantId.value) {
       appendMessageContent(currentAssistantId.value, data.delta || '', 'thinking')
       if (streamPhase.value !== 'summarizing_observations') {
@@ -237,6 +247,7 @@ export function useChat(options: UseChatOptions): UseChatReturn {
   })
 
   stream.on('message_start', (data) => {
+    if (isStaleEvent(data)) return
     if (data?.role !== 'assistant') return
     const currentMsg = currentAssistantId.value ? getMessage(currentAssistantId.value) : null
     if (currentMsg?.role === 'assistant') {
@@ -258,6 +269,7 @@ export function useChat(options: UseChatOptions): UseChatReturn {
   })
 
   stream.on('warning', (data) => {
+    if (isStaleEvent(data)) return
     console.warn('[Chat] Warning from server:', data.delta || data.message || data)
     if (currentAssistantId.value) {
       const msg = getMessage(currentAssistantId.value)
@@ -274,6 +286,7 @@ export function useChat(options: UseChatOptions): UseChatReturn {
   })
 
   stream.on('message_complete', (data) => {
+    if (isStaleEvent(data)) return
     if (currentAssistantId.value) {
       const msg = getMessage(currentAssistantId.value)
       if (msg?.status === 'failed') {
@@ -329,6 +342,7 @@ export function useChat(options: UseChatOptions): UseChatReturn {
   })
 
   stream.on('done', (data) => {
+    if (isStaleEvent(data)) return
     console.log('[useChat] done event received:', {
       status: data.status,
       promptTokens: data.promptTokens,
@@ -386,6 +400,7 @@ export function useChat(options: UseChatOptions): UseChatReturn {
 
   let errorFired = false
   stream.on('error', (data) => {
+    if (isStaleEvent(data)) return
     const errorInfo: ChatErrorInfo = data.errorInfo
       || (data.errorType ? classifyBackendError(data) : { category: 'unknown', retryable: true, timestamp: Date.now() })
     if (currentAssistantId.value) {
@@ -421,6 +436,7 @@ export function useChat(options: UseChatOptions): UseChatReturn {
   // ===== Agent 事件处理 =====
 
   stream.on('tool_call_started', (data) => {
+    if (isStaleEvent(data)) return
     streamPhase.value = 'executing_tool'
     if (currentAssistantId.value) {
       const msg = getMessage(currentAssistantId.value)
@@ -452,6 +468,7 @@ export function useChat(options: UseChatOptions): UseChatReturn {
   })
 
   stream.on('tool_call_completed', (data) => {
+    if (isStaleEvent(data)) return
     if (currentAssistantId.value) {
       const msg = getMessage(currentAssistantId.value)
       if (msg) {
@@ -487,6 +504,7 @@ export function useChat(options: UseChatOptions): UseChatReturn {
   // ===== Browser 执行事件 =====
 
   stream.on('browser_action', (data) => {
+    if (isStaleEvent(data)) return
     if (currentAssistantId.value) {
       const msg = getMessage(currentAssistantId.value)
       if (msg) {
@@ -510,6 +528,7 @@ export function useChat(options: UseChatOptions): UseChatReturn {
   })
 
   stream.on('phase', (data) => {
+    if (isStaleEvent(data)) return
     const phase = data.phase as StreamPhase
     if (phase) {
       streamPhase.value = phase
@@ -530,6 +549,7 @@ export function useChat(options: UseChatOptions): UseChatReturn {
   })
 
   stream.on('plan_created', (data) => {
+    if (isStaleEvent(data)) return
     if (currentAssistantId.value) {
       const msg = getMessage(currentAssistantId.value)
       if (msg) {
@@ -546,6 +566,7 @@ export function useChat(options: UseChatOptions): UseChatReturn {
   })
 
   stream.on('plan_step_started', (data) => {
+    if (isStaleEvent(data)) return
     if (currentAssistantId.value) {
       const msg = getMessage(currentAssistantId.value)
       if (msg) {
@@ -564,6 +585,7 @@ export function useChat(options: UseChatOptions): UseChatReturn {
   })
 
   stream.on('plan_step_completed', (data) => {
+    if (isStaleEvent(data)) return
     if (currentAssistantId.value) {
       const msg = getMessage(currentAssistantId.value)
       if (msg) {
@@ -587,6 +609,7 @@ export function useChat(options: UseChatOptions): UseChatReturn {
   // ===== 工具审批事件（带幂等去重） =====
 
   stream.on('tool_approval_requested', (data) => {
+    if (isStaleEvent(data)) return
     // 幂等去重：同一 pendingId 只处理一次
     if (data.pendingId && processedApprovalIds.has(data.pendingId)) {
       console.log('[useChat] Duplicate approval request ignored:', data.pendingId)
@@ -641,6 +664,7 @@ export function useChat(options: UseChatOptions): UseChatReturn {
   })
 
   stream.on('tool_approval_resolved', (data) => {
+    if (isStaleEvent(data)) return
     const targetMsg = messages.value.findLast((m) => {
       if (m.role !== 'assistant') return false
       const metadata = parseMetadata((m as any).metadata)
@@ -717,6 +741,7 @@ export function useChat(options: UseChatOptions): UseChatReturn {
   })
 
   stream.on('turn_interrupted', (data) => {
+    if (isStaleEvent(data)) return
     console.log('[useChat] Turn interrupted, hasQueuedMessage:', data.hasQueuedMessage)
     // 当前 turn 已中断，等待后端自动启动排队消息
     // 如果后端会自动续跑，前端不需要做额外操作
@@ -734,6 +759,7 @@ export function useChat(options: UseChatOptions): UseChatReturn {
   })
 
   stream.on('queued_input_started', (data) => {
+    if (isStaleEvent(data)) return
     console.log('[useChat] Queued input started:', data.message)
     // 后端已开始处理排队消息
     // 1. 先用排队的内容创建用户消息（此时上一轮回答已完成，顺序正确）
@@ -753,6 +779,7 @@ export function useChat(options: UseChatOptions): UseChatReturn {
 
   // ===== 异步任务完成事件（视频生成、图片生成等） =====
   stream.on('async_task_completed', (data) => {
+    if (isStaleEvent(data)) return
     console.log('[useChat] Async task completed:', data)
     if (data.success && streamConversationId) {
       let mediaPart: MessageContentPart | null = null
@@ -852,6 +879,11 @@ export function useChat(options: UseChatOptions): UseChatReturn {
     if (stopFallbackTimer) {
       clearTimeout(stopFallbackTimer)
       stopFallbackTimer = null
+    }
+    // 切换会话时断开旧流，防止旧事件污染新会话
+    if (streamConversationId && streamConversationId !== conversationId) {
+      stream.disconnect()
+      currentAssistantId.value = null
     }
     error.value = null
     errorFired = false

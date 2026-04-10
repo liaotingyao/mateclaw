@@ -124,27 +124,30 @@ function mergeMetadata(localMetaRaw: any, fetchedMetaRaw: any): Record<string, a
 function mergeAssistantMessages(localMsg: Message, fetchedMsg: Message): Message {
   const localRichness = messageRichness(localMsg)
   const fetchedRichness = messageRichness(fetchedMsg)
-  const richerMsg = localRichness >= fetchedRichness ? localMsg : fetchedMsg
+  const richer = localRichness >= fetchedRichness ? localMsg : fetchedMsg
+  const poorer = richer === localMsg ? fetchedMsg : localMsg
+
+  // 取 richer 的 contentParts 而非合并两边，避免 tool_call 因序列化差异导致重复
+  const localParts = Array.isArray(localMsg.contentParts) ? localMsg.contentParts : []
+  const fetchedParts = Array.isArray(fetchedMsg.contentParts) ? fetchedMsg.contentParts : []
+  const contentParts = localParts.length >= fetchedParts.length ? localParts : fetchedParts
 
   return {
-    ...fetchedMsg,
+    ...poorer,
+    ...richer,
+    // 用 fetched 的持久化字段覆盖（id、status、tokens 等）
+    id: fetchedMsg.id || localMsg.id,
     content: (fetchedMsg.content?.length || 0) >= (localMsg.content?.length || 0)
       ? fetchedMsg.content
       : localMsg.content,
-    contentParts: mergeContentParts(
-      Array.isArray(localMsg.contentParts) ? localMsg.contentParts : [],
-      Array.isArray(fetchedMsg.contentParts) ? fetchedMsg.contentParts : [],
-    ),
+    contentParts,
     metadata: mergeMetadata(localMsg.metadata, fetchedMsg.metadata),
-    attachments: fetchedMsg.attachments?.length ? fetchedMsg.attachments : localMsg.attachments,
-    errorInfo: fetchedMsg.errorInfo || localMsg.errorInfo,
-    thinkingExpanded: localMsg.thinkingExpanded ?? fetchedMsg.thinkingExpanded,
     status: fetchedMsg.status || localMsg.status,
     promptTokens: fetchedMsg.promptTokens ?? localMsg.promptTokens,
     completionTokens: fetchedMsg.completionTokens ?? localMsg.completionTokens,
     createTime: fetchedMsg.createTime || localMsg.createTime,
     conversationId: fetchedMsg.conversationId || localMsg.conversationId,
-    role: richerMsg.role,
+    thinkingExpanded: localMsg.thinkingExpanded ?? fetchedMsg.thinkingExpanded,
   }
 }
 
@@ -185,9 +188,17 @@ export function reconcileMessages(local: Message[], fetched: Message[]): Message
   }
 
   // 保留 fetched 中不存在的本地 assistant 消息（防止 lagging snapshot 丢弃刚完成的消息）
+  // 推断当前对话 ID：取 fetched 中第一条消息的 conversationId
+  const fetchedConversationId = fetched.length > 0 ? (fetched[0] as any).conversationId : ''
   for (const lm of local) {
     const lid = String(lm.id)
     if (!matchedLocalIds.has(lid) && lm.role === 'assistant') {
+      // 跳过不属于当前对话的本地消息，防止跨对话污染
+      // 无 conversationId 的 orphan 消息也不保留
+      const lmConvId = (lm as any).conversationId
+      if (!lmConvId || (fetchedConversationId && lmConvId !== fetchedConversationId)) {
+        continue
+      }
       // 检查是否是 fetched 末尾之后的消息（刚完成，DB 还没返回）
       const lastFetchedTime = result.length > 0 ? result[result.length - 1].createTime : ''
       if (!lastFetchedTime || (lm.createTime && lm.createTime >= lastFetchedTime)) {

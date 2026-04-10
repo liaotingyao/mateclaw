@@ -777,8 +777,12 @@ async function refreshCurrentConversationMessages(conversationId: string) {
   try {
     const res: any = await conversationApi.listMessages(conversationId)
     const fetched = extractMessages(res).messages.map((msg: Message) => normalizeMessage(msg))
+    // 过滤掉不属于当前对话的本地消息，防止跨对话污染
+    const currentMessages = messages.value.filter(
+      (m: any) => !m.conversationId || m.conversationId === conversationId
+    )
     // 逐条 reconcile：只接受更丰富的版本，防止 poorer DB 快照覆盖 local rich message
-    messages.value = reconcileMessages(messages.value, fetched)
+    messages.value = reconcileMessages(currentMessages, fetched)
   } catch (e) {
     console.warn('[ChatConsole] Failed to refresh current conversation messages:', e)
   }
