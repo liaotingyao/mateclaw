@@ -20,6 +20,8 @@ public final class MateClawStateKeys {
     public static final String CONVERSATION_ID = "conversation_id";
     public static final String SYSTEM_PROMPT = "system_prompt";
     public static final String AGENT_ID = "agent_id";
+    /** 工作区活动目录（为空不限制文件访问范围） */
+    public static final String WORKSPACE_BASE_PATH = "workspace_base_path";
 
     // ===== 消息列表（APPEND 策略）=====
     public static final String MESSAGES = "messages";

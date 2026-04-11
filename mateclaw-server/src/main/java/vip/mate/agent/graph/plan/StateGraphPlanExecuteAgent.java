@@ -269,6 +269,7 @@ public class StateGraphPlanExecuteAgent extends BaseAgent implements StructuredS
                 systemPrompt != null ? systemPrompt : "你是一个有帮助的AI助手。");
         inputs.put(MateClawStateKeys.CONVERSATION_ID, conversationId);
         inputs.put(MateClawStateKeys.AGENT_ID, agentId != null ? agentId : "");
+        inputs.put(MateClawStateKeys.WORKSPACE_BASE_PATH, workspaceBasePath != null ? workspaceBasePath : "");
         // 注入会话消息（复用 MateClawStateKeys.MESSAGES，与 ReAct 一致）
         inputs.put(MateClawStateKeys.MESSAGES, messages);
         // 注入 working context

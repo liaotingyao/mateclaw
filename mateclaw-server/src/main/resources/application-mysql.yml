@@ -5,6 +5,10 @@ spring:
     username: ${DB_USERNAME:root}
     password: ${DB_PASSWORD:mateclaw123}
 
+  flyway:
+    locations:
+      - classpath:db/migration/mysql
+
   h2:
     console:
       enabled: false

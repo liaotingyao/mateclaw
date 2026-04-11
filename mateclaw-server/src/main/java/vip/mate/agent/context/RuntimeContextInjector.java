@@ -27,4 +27,16 @@ public final class RuntimeContextInjector {
         return "[system-context] 当前时间: " + now.format(DATE_FMT)
                 + " " + now.format(TIME_FMT) + " (Asia/Shanghai)";
     }
+
+    /**
+     * 构建运行时上下文消息，包含当前日期、时间和工作目录。
+     */
+    public static String buildContextMessage(String workspaceBasePath) {
+        StringBuilder sb = new StringBuilder(buildContextMessage());
+        if (workspaceBasePath != null && !workspaceBasePath.isBlank()) {
+            sb.append("\n[system-context] 工作目录: ").append(workspaceBasePath)
+              .append("\n你只能在此目录及其子目录内读写文件和执行命令。");
+        }
+        return sb.toString();
+    }
 }

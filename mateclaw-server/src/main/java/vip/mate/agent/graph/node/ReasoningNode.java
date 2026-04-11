@@ -171,9 +171,10 @@ public class ReasoningNode implements NodeAction {
             messages = trimmed;
         }
 
+        String workspaceBasePath = state.value(vip.mate.agent.graph.state.MateClawStateKeys.WORKSPACE_BASE_PATH, "");
         List<Message> promptMessages = new ArrayList<>();
         promptMessages.add(new SystemMessage(systemPrompt));
-        promptMessages.add(new UserMessage(RuntimeContextInjector.buildContextMessage()));
+        promptMessages.add(new UserMessage(RuntimeContextInjector.buildContextMessage(workspaceBasePath)));
         promptMessages.addAll(messages);
 
         ChatOptions options;
@@ -222,7 +223,7 @@ public class ReasoningNode implements NodeAction {
                 if (compactedMessages != null && compactedMessages.size() < messages.size()) {
                     List<Message> retryPromptMessages = new ArrayList<>();
                     retryPromptMessages.add(new SystemMessage(systemPrompt));
-                    retryPromptMessages.add(new UserMessage(RuntimeContextInjector.buildContextMessage()));
+                    retryPromptMessages.add(new UserMessage(RuntimeContextInjector.buildContextMessage(workspaceBasePath)));
                     retryPromptMessages.addAll(compactedMessages);
                     Prompt retryPrompt = new Prompt(retryPromptMessages, options);
                     log.info("[ReasoningNode] Retrying with compacted messages: {} -> {} messages",

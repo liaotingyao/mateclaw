@@ -85,6 +85,7 @@ public class StepExecutionNode implements NodeAction {
 
         String conversationId = state.value(MateClawStateKeys.CONVERSATION_ID, "");
         String agentId = state.value(MateClawStateKeys.AGENT_ID, "");
+        String workspaceBasePath = state.value(MateClawStateKeys.WORKSPACE_BASE_PATH, "");
 
         if (stepIndex >= steps.size()) {
             log.warn("[StepExecution] stepIndex {} >= steps.size() {}, skipping", stepIndex, steps.size());
@@ -105,7 +106,7 @@ public class StepExecutionNode implements NodeAction {
         planningService.updateSubPlanStatus(planId, stepIndex, "running");
 
         // 构建消息列表
-        List<Message> messages = buildStepMessages(accessor, step, systemPrompt);
+        List<Message> messages = buildStepMessages(accessor, step, systemPrompt, workspaceBasePath);
 
         // 显式工具执行循环
         String finalResult = null;
@@ -186,7 +187,7 @@ public class StepExecutionNode implements NodeAction {
                         } else {
                             // 非预批准工具走正常执行器
                             ToolExecutionExecutor.ToolExecutionResult execResult = executor.execute(
-                                    List.of(toolCall), conversationId, agentId, false);
+                                    List.of(toolCall), conversationId, agentId, false, "", workspaceBasePath);
                             toolResponses.addAll(execResult.responses());
                             events.addAll(execResult.events());
                             if (execResult.awaitingApproval()) {
@@ -199,7 +200,7 @@ public class StepExecutionNode implements NodeAction {
                 } else {
                     // 正常路径：委托 ToolExecutionExecutor（支持并发执行 + 审批 barrier）
                     ToolExecutionExecutor.ToolExecutionResult execResult = executor.execute(
-                            allToolCalls, conversationId, agentId, false);
+                            allToolCalls, conversationId, agentId, false, "", workspaceBasePath);
                     toolResponses.addAll(execResult.responses());
                     events.addAll(execResult.events());
                     if (execResult.awaitingApproval()) {
@@ -286,7 +287,7 @@ public class StepExecutionNode implements NodeAction {
                 .build();
     }
 
-    private List<Message> buildStepMessages(PlanStateAccessor accessor, String step, String systemPrompt) {
+    private List<Message> buildStepMessages(PlanStateAccessor accessor, String step, String systemPrompt, String workspaceBasePath) {
         List<Message> messages = new ArrayList<>();
 
         // Layer 1: System prompt（增强指令）
@@ -305,8 +306,8 @@ public class StepExecutionNode implements NodeAction {
                 8. 每一步最多做一个必要的检查和一个必要的执行，不要无意义循环。
                 """;
         messages.add(new SystemMessage(enhancedSystemPrompt));
-        // 注入运行时上下文（当前时间）
-        messages.add(new UserMessage(RuntimeContextInjector.buildContextMessage()));
+        // 注入运行时上下文（当前时间 + 工作目录）
+        messages.add(new UserMessage(RuntimeContextInjector.buildContextMessage(workspaceBasePath)));
 
         // Layer 2: Working context（对话历史 + 步骤结果的受控长度摘要）
         String workingContext = accessor.workingContext();

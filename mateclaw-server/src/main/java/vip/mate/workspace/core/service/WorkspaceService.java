@@ -97,12 +97,16 @@ public class WorkspaceService {
 
     public WorkspaceEntity update(WorkspaceEntity entity) {
         WorkspaceEntity existing = getById(entity.getId());
+        // slug 为 null 时保留原值，不做修改
+        if (entity.getSlug() == null) {
+            entity.setSlug(existing.getSlug());
+        }
         // 不允许修改默认工作区的 slug
         if (DEFAULT_SLUG.equals(existing.getSlug()) && !DEFAULT_SLUG.equals(entity.getSlug())) {
             throw new MateClawException("不能修改默认工作区的标识");
         }
         // 验证 slug 唯一性（如果修改了 slug）
-        if (entity.getSlug() != null && !entity.getSlug().equals(existing.getSlug())) {
+        if (!entity.getSlug().equals(existing.getSlug())) {
             if (getBySlug(entity.getSlug()) != null) {
                 throw new MateClawException("工作区标识已存在: " + entity.getSlug());
             }

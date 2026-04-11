@@ -129,12 +129,22 @@ public class ShellExecuteTool {
      * Unix: /bin/sh -c command
      */
     private static ProcessBuilder buildShellProcess(String command) {
+        ProcessBuilder pb;
         if (IS_WINDOWS) {
             String winCommand = sanitizeWindowsCommand(command);
-            return new ProcessBuilder("cmd.exe", "/D", "/S", "/C", winCommand);
+            pb = new ProcessBuilder("cmd.exe", "/D", "/S", "/C", winCommand);
         } else {
-            return new ProcessBuilder("/bin/sh", "-c", command);
+            pb = new ProcessBuilder("/bin/sh", "-c", command);
         }
+
+        // 设置工作区活动目录
+        java.nio.file.Path workingDir = vip.mate.tool.guard.WorkspacePathGuard.getWorkingDirectory();
+        if (workingDir != null && java.nio.file.Files.isDirectory(workingDir)) {
+            pb.directory(workingDir.toFile());
+            log.info("[ShellExecute] Working directory set to: {}", workingDir);
+        }
+
+        return pb;
     }
 
     /**

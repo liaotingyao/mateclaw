@@ -60,7 +60,7 @@ public class CronJobService implements ApplicationRunner {
     // ==================== 初始化与销毁 ====================
 
     /**
-     * 实现 ApplicationRunner，确保在 CronSchemaMigration(@Order=200) 执行完毕后再加载任务
+     * 实现 ApplicationRunner，确保在 Flyway 迁移和 DatabaseBootstrapRunner 完成后再加载任务
      */
     @Override
     public void run(ApplicationArguments args) {

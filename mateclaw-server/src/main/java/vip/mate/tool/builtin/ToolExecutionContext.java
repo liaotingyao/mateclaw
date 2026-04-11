@@ -12,12 +12,21 @@ public final class ToolExecutionContext {
 
     private static final ThreadLocal<String> CONVERSATION_ID = new ThreadLocal<>();
     private static final ThreadLocal<String> USERNAME = new ThreadLocal<>();
+    /** 工作区活动目录（为空不限制） */
+    private static final ThreadLocal<String> WORKSPACE_BASE_PATH = new ThreadLocal<>();
 
     private ToolExecutionContext() {}
 
     public static void set(String conversationId, String username) {
         CONVERSATION_ID.set(conversationId);
         USERNAME.set(username);
+        WORKSPACE_BASE_PATH.remove();
+    }
+
+    public static void set(String conversationId, String username, String workspaceBasePath) {
+        CONVERSATION_ID.set(conversationId);
+        USERNAME.set(username);
+        WORKSPACE_BASE_PATH.set(workspaceBasePath);
     }
 
     public static String conversationId() {
@@ -28,8 +37,14 @@ public final class ToolExecutionContext {
         return USERNAME.get();
     }
 
+    /** 获取当前工作区活动目录，为 null 表示不限制 */
+    public static String workspaceBasePath() {
+        return WORKSPACE_BASE_PATH.get();
+    }
+
     public static void clear() {
         CONVERSATION_ID.remove();
         USERNAME.remove();
+        WORKSPACE_BASE_PATH.remove();
     }
 }

@@ -752,6 +752,7 @@ export default {
         name: '名称',
         slug: '标识',
         description: '描述',
+        basePath: '活动目录',
         created: '创建时间',
         actions: '操作',
       },
@@ -764,6 +765,9 @@ export default {
         slugHint: '标识创建后不可修改。',
         description: '描述',
         descriptionPlaceholder: '可选描述',
+        basePath: '活动目录',
+        basePathPlaceholder: '例如：/home/user/project 或 D:\\codes\\MyProject',
+        basePathHint: '限制 Agent 文件操作的根目录，留空不限制。',
       },
       editDialog: {
         title: '编辑工作区',

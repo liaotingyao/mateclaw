@@ -46,6 +46,9 @@ public abstract class BaseAgent {
     /** 最大工具调用迭代次数 */
     protected int maxIterations = 25;
 
+    /** 工作区活动目录（限制文件工具访问范围，为空不限制） */
+    protected String workspaceBasePath;
+
     /** 模型名称 */
     protected String modelName;
 

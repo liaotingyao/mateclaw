@@ -752,6 +752,7 @@ export default {
         name: 'Name',
         slug: 'Slug',
         description: 'Description',
+        basePath: 'Working Directory',
         created: 'Created',
         actions: 'Actions',
       },
@@ -764,6 +765,9 @@ export default {
         slugHint: 'Slug cannot be changed after creation.',
         description: 'Description',
         descriptionPlaceholder: 'Optional description',
+        basePath: 'Working Directory',
+        basePathPlaceholder: 'e.g. /home/user/project or D:\\codes\\MyProject',
+        basePathHint: 'Restrict agent file access to this directory. Leave empty for no restriction.',
       },
       editDialog: {
         title: 'Edit Workspace',

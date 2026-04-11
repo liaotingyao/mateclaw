@@ -267,6 +267,16 @@
             <version>2.2.0</version>
         </dependency>
 
+        <!-- ===== Database Migration (Flyway) ===== -->
+        <dependency>
+            <groupId>org.flywaydb</groupId>
+            <artifactId>flyway-core</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>org.flywaydb</groupId>
+            <artifactId>flyway-mysql</artifactId>
+        </dependency>
+
         <!-- ===== Spring Boot Test ===== -->
         <dependency>
             <groupId>org.springframework.boot</groupId>

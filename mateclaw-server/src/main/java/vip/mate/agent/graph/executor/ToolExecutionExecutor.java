@@ -146,11 +146,21 @@ public class ToolExecutionExecutor {
 
     /** 当前执行的 requesterId，传递给 ToolExecutionContext */
     private volatile String currentRequesterId;
+    /** 当前工作区活动目录（为空不限制），传递给 ToolExecutionContext */
+    private volatile String currentWorkspaceBasePath;
 
     public ToolExecutionResult execute(List<AssistantMessage.ToolCall> toolCalls,
                                         String conversationId, String agentId,
                                         boolean isReplay, String requesterId) {
+        return execute(toolCalls, conversationId, agentId, isReplay, requesterId, null);
+    }
+
+    public ToolExecutionResult execute(List<AssistantMessage.ToolCall> toolCalls,
+                                        String conversationId, String agentId,
+                                        boolean isReplay, String requesterId,
+                                        String workspaceBasePath) {
         this.currentRequesterId = requesterId;
+        this.currentWorkspaceBasePath = workspaceBasePath;
         List<ToolResponseMessage.ToolResponse> allResponses = new ArrayList<>();
         List<GraphEventPublisher.GraphEvent> events = Collections.synchronizedList(new ArrayList<>());
 
@@ -228,7 +238,8 @@ public class ToolExecutionExecutor {
 
             // 4. 分类: concurrencySafe
             boolean safe = isConcurrencySafe(toolName);
-            preparedCalls.add(new PreparedToolCall(toolCall, callback, arguments, safe, allResponses.size(), conversationId));
+            preparedCalls.add(new PreparedToolCall(toolCall, callback, arguments, safe, allResponses.size(),
+                    conversationId, currentRequesterId, currentWorkspaceBasePath));
             // 占位，Phase 2 填充
             allResponses.add(null);
         }
@@ -392,8 +403,8 @@ public class ToolExecutionExecutor {
                     toolName, pc.arguments != null && pc.arguments.length() > 200
                             ? pc.arguments.substring(0, 200) + "..." : pc.arguments);
 
-            // 注入工具执行上下文（供 VideoGenerateTool 等获取 conversationId / username）
-            ToolExecutionContext.set(pc.conversationId, currentRequesterId);
+            // 注入工具执行上下文（供 VideoGenerateTool 等获取 conversationId / username / workspaceBasePath）
+            ToolExecutionContext.set(pc.conversationId, pc.requesterId, pc.workspaceBasePath);
             String result;
             try {
                 result = pc.callback.call(pc.arguments);
@@ -530,7 +541,9 @@ public class ToolExecutionExecutor {
             String arguments,
             boolean concurrencySafe,
             int resultIndex,
-            String conversationId
+            String conversationId,
+            String requesterId,
+            String workspaceBasePath
     ) {}
 
     private record ApprovalBarrier(String pendingId, String toolName) {}

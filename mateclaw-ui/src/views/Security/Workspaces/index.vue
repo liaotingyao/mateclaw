@@ -23,6 +23,7 @@
             <th>{{ t('security.workspaces.columns.name') }}</th>
             <th>{{ t('security.workspaces.columns.slug') }}</th>
             <th>{{ t('security.workspaces.columns.description') }}</th>
+            <th>{{ t('security.workspaces.columns.basePath') }}</th>
             <th>{{ t('security.workspaces.columns.created') }}</th>
             <th style="width: 120px;">{{ t('security.workspaces.columns.actions') }}</th>
           </tr>
@@ -37,6 +38,7 @@
             </td>
             <td class="slug-cell">{{ ws.slug }}</td>
             <td class="desc-cell">{{ ws.description || '-' }}</td>
+            <td class="slug-cell">{{ ws.basePath || '-' }}</td>
             <td class="date-cell">{{ formatDate(ws.createTime) }}</td>
             <td>
               <div class="action-btns">
@@ -92,6 +94,11 @@
               <div class="form-group">
                 <label>{{ t('security.workspaces.createDialog.description') }}</label>
                 <input v-model="form.description" class="form-input" :placeholder="t('security.workspaces.createDialog.descriptionPlaceholder')" />
+              </div>
+              <div class="form-group">
+                <label>{{ t('security.workspaces.createDialog.basePath') }}</label>
+                <input v-model="form.basePath" class="form-input mono" :placeholder="t('security.workspaces.createDialog.basePathPlaceholder')" />
+                <span class="form-hint">{{ t('security.workspaces.createDialog.basePathHint') }}</span>
               </div>
             </div>
           </div>
@@ -150,6 +157,7 @@ const form = ref({
   name: '',
   slug: '',
   description: '',
+  basePath: '',
 })
 
 onMounted(() => {
@@ -170,7 +178,7 @@ async function fetchWorkspaces() {
 
 function openCreateDialog() {
   editingWs.value = null
-  form.value = { name: '', slug: '', description: '' }
+  form.value = { name: '', slug: '', description: '', basePath: '' }
   showDialog.value = true
 }
 
@@ -180,6 +188,7 @@ function openEditDialog(ws: Workspace) {
     name: ws.name,
     slug: ws.slug,
     description: ws.description || '',
+    basePath: ws.basePath || '',
   }
   showDialog.value = true
 }
@@ -199,12 +208,14 @@ async function saveWorkspace() {
       await workspaceTeamApi.update(editingWs.value.id, {
         name: form.value.name,
         description: form.value.description,
+        basePath: form.value.basePath || null,
       })
     } else {
       await workspaceTeamApi.create({
         name: form.value.name,
         slug: form.value.slug,
         description: form.value.description,
+        basePath: form.value.basePath || null,
       })
     }
     showDialog.value = false

@@ -7,6 +7,7 @@ export interface Workspace {
   name: string
   slug: string
   description?: string
+  basePath?: string
   ownerId?: number
   settingsJson?: string
   createTime?: string

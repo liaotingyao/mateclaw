@@ -32,6 +32,9 @@ public class WorkspaceEntity {
     /** 拥有者用户 ID */
     private Long ownerId;
 
+    /** 工作区活动目录（限制文件工具的访问范围，为空不限制） */
+    private String basePath;
+
     /** 工作区级配置（JSON） */
     @TableField(value = "settings_json", updateStrategy = FieldStrategy.ALWAYS)
     private String settingsJson;

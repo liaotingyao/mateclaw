@@ -362,6 +362,7 @@ public class StateGraphReActAgent extends BaseAgent implements StructuredStreamC
         inputs.put(USER_MESSAGE, userMessage);
         inputs.put(CONVERSATION_ID, conversationId);
         inputs.put(AGENT_ID, agentId != null ? agentId : "");
+        inputs.put(WORKSPACE_BASE_PATH, workspaceBasePath != null ? workspaceBasePath : "");
         inputs.put(SYSTEM_PROMPT, systemPrompt != null ? systemPrompt : "你是一个有帮助的AI助手。");
         inputs.put(MESSAGES, messages);
         // 迭代控制

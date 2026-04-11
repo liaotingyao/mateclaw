@@ -62,9 +62,12 @@ public class ActionNode implements NodeAction {
         // 请求者身份（用于审批记录）
         String requesterId = accessor.requesterId();
 
+        // 获取工作区活动目录
+        String workspaceBasePath = state.value(MateClawStateKeys.WORKSPACE_BASE_PATH, "");
+
         // 委托 ToolExecutionExecutor 执行（两阶段：顺序 Guard + 分段并发执行）
         ToolExecutionExecutor.ToolExecutionResult result = executor.execute(
-                toolCalls, conversationId, agentId, isReplay, requesterId);
+                toolCalls, conversationId, agentId, isReplay, requesterId, workspaceBasePath);
 
         ToolResponseMessage toolResponseMessage = ToolResponseMessage.builder()
                 .responses(result.responses())

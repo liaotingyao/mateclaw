@@ -68,7 +68,7 @@ public class DatabaseBootstrapRunner implements ApplicationRunner {
 
     @Override
     public void run(ApplicationArguments args) throws Exception {
-        runSchemaScript();
+        // Schema creation is now handled by Flyway (db/migration/)
         runToolSyncScript();
 
         if (isDataAlreadySeeded()) {
@@ -166,10 +166,6 @@ public class DatabaseBootstrapRunner implements ApplicationRunner {
             }
         }
         return isMySQL;
-    }
-
-    private void runSchemaScript() {
-        runScript(isMySQL() ? "db/schema-mysql.sql" : "db/schema.sql");
     }
 
     private void runToolSyncScript() {

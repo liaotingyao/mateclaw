@@ -62,7 +62,12 @@ public class ReadFileTool {
         result.set("filePath", filePath);
 
         try {
-            Path path = Paths.get(filePath).toAbsolutePath().normalize();
+            Path path;
+            try {
+                path = vip.mate.tool.guard.WorkspacePathGuard.validatePath(filePath);
+            } catch (IllegalArgumentException e) {
+                return errorResult(filePath, e.getMessage());
+            }
 
             // 文件存在性和类型校验
             if (!Files.exists(path)) {

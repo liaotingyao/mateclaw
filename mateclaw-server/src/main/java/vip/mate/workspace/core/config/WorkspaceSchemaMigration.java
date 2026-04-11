@@ -67,7 +67,7 @@ public class WorkspaceSchemaMigration implements ApplicationRunner {
             // 查找不在默认工作区中的用户
             int inserted = jdbcTemplate.update("""
                     INSERT INTO mate_workspace_member (id, workspace_id, user_id, role, create_time, update_time, deleted)
-                    SELECT u.id, 1, u.id, u.role, NOW(), NOW(), 0
+                    SELECT u.id, 1, u.id, CASE WHEN u.role = 'admin' THEN 'owner' ELSE u.role END, NOW(), NOW(), 0
                     FROM mate_user u
                     WHERE u.deleted = 0
                       AND NOT EXISTS (

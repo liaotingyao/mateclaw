@@ -56,7 +56,7 @@ public class WorkspaceController {
     @PutMapping("/{id}")
     public R<WorkspaceEntity> update(@PathVariable Long id, @RequestBody WorkspaceEntity entity, Authentication auth) {
         Long userId = resolveUserId(auth);
-        workspaceService.requirePermission(id, userId, "owner");
+        workspaceService.requirePermission(id, userId, "admin");
         entity.setId(id);
         return R.ok(workspaceService.update(entity));
     }

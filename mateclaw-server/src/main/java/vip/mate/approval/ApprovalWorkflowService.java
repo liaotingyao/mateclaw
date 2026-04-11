@@ -30,7 +30,7 @@ import java.util.Map;
  */
 @Slf4j
 @Service
-@Order(55) // 在 ApprovalSchemaMigration(50) 之后
+@Order(55) // Schema 由 Flyway 管理，在 Flyway 迁移完成后执行
 @RequiredArgsConstructor
 public class ApprovalWorkflowService implements ApplicationRunner {
 

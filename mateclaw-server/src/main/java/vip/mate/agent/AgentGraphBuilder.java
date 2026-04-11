@@ -120,6 +120,7 @@ public class AgentGraphBuilder {
     private final vip.mate.agent.context.ConversationWindowManager conversationWindowManager;
     private final vip.mate.llm.chatgpt.ChatGPTResponsesClient chatGPTResponsesClient;
     private final WikiContextService wikiContextService;
+    private final vip.mate.workspace.core.service.WorkspaceService workspaceService;
 
     /**
      * 根据 AgentEntity 构建完整的 Agent 实例
@@ -201,6 +202,19 @@ public class AgentGraphBuilder {
         agent.maxInputTokens = runtimeModel.getMaxInputTokens();
         agent.topP = runtimeModel.getTopP();
         agent.toolCallingEnabled = toolCallingEnabled;
+
+        // 查找工作区活动目录
+        if (entity.getWorkspaceId() != null) {
+            try {
+                var workspace = workspaceService.getById(entity.getWorkspaceId());
+                if (workspace != null && workspace.getBasePath() != null && !workspace.getBasePath().isBlank()) {
+                    agent.workspaceBasePath = workspace.getBasePath();
+                    log.info("Agent {} bound to workspace basePath: {}", entity.getName(), agent.workspaceBasePath);
+                }
+            } catch (Exception e) {
+                log.warn("Failed to lookup workspace basePath for agent {}: {}", entity.getName(), e.getMessage());
+            }
+        }
 
         log.info("Built agent instance: {} (type={}, protocol={}, tools={}, toolCallingEnabled={})",
                 entity.getName(), entity.getAgentType(), protocol.getId(),

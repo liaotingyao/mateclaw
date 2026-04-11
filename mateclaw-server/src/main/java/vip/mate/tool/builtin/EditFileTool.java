@@ -56,7 +56,12 @@ public class EditFileTool {
                 return errorResult(filePath, "oldText 和 newText 内容相同，无需替换");
             }
 
-            Path path = Paths.get(filePath).toAbsolutePath().normalize();
+            Path path;
+            try {
+                path = vip.mate.tool.guard.WorkspacePathGuard.validatePath(filePath);
+            } catch (IllegalArgumentException e) {
+                return errorResult(filePath, e.getMessage());
+            }
 
             if (!Files.exists(path)) {
                 return errorResult(filePath, "文件不存在: " + path);

@@ -30,7 +30,7 @@ import java.util.stream.Collectors;
  */
 @Slf4j
 @Component
-@Order(110) // 在 ToolGuardSchemaMigration(100) 之后
+@Order(110) // Schema 由 Flyway 管理，在 Flyway 迁移完成后执行
 @RequiredArgsConstructor
 public class ToolGuardRuleSeedService implements ApplicationRunner {
 

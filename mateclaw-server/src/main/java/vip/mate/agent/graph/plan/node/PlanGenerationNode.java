@@ -133,8 +133,9 @@ public class PlanGenerationNode implements NodeAction {
             // 拼接后会稀释 PLANNING_PROMPT 的指令优先级）
             List<Message> promptMessages = new ArrayList<>();
             promptMessages.add(new SystemMessage(PLANNING_PROMPT));
-            // 注入运行时上下文（当前时间）
-            promptMessages.add(new UserMessage(RuntimeContextInjector.buildContextMessage()));
+            // 注入运行时上下文（当前时间 + 工作目录）
+            String workspaceBasePath = state.value(MateClawStateKeys.WORKSPACE_BASE_PATH, "");
+            promptMessages.add(new UserMessage(RuntimeContextInjector.buildContextMessage(workspaceBasePath)));
 
             // 注入可用工具名称，帮助 LLM 判断用户目标是否需要工具
             if (toolSet != null && !toolSet.callbacks().isEmpty()) {
