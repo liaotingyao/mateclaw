@@ -136,31 +136,14 @@
         </div>
         <div class="chat-header-right">
           <!-- Model selector -->
-          <div v-if="eligibleModels.length > 0" class="model-selector-wrap">
-            <button class="model-select-trigger" :disabled="modelSaving" @click="modelDropdownOpen = !modelDropdownOpen">
-              <span class="model-select-trigger__name">{{ activeModelLabel || $t('chat.configModel') }}</span>
-              <svg class="model-select-trigger__arrow" :class="{ open: modelDropdownOpen }" width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="6 9 12 15 18 9"/></svg>
-            </button>
-            <Transition name="fade">
-              <div v-if="modelDropdownOpen" class="model-dropdown-backdrop" @click="modelDropdownOpen = false"></div>
-            </Transition>
-            <Transition name="agent-dropdown">
-              <div v-if="modelDropdownOpen" class="model-dropdown">
-                <div
-                  v-for="item in eligibleModels"
-                  :key="item.value"
-                  class="model-dropdown-item"
-                  :class="{ active: item.value === activeModelValue }"
-                  @click="selectModel(item.value)"
-                >
-                  <span class="model-dropdown-item__name">{{ item.label }}</span>
-                  <span v-if="item.value === activeModelValue" class="model-dropdown-item__check">
-                    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="20 6 9 17 4 12"/></svg>
-                  </span>
-                </div>
-              </div>
-            </Transition>
-          </div>
+          <ModelSelector
+            v-if="eligibleModels.length > 0"
+            :providers="availableProviders"
+            :active-value="activeModelValue"
+            :active-label="activeModelLabel"
+            :saving="modelSaving"
+            @select="selectModel"
+          />
           <button v-else class="header-btn" @click="goToModelSettings" :title="$t('chat.configModel')">
             <el-icon><Setting /></el-icon>
           </button>
@@ -284,6 +267,7 @@ import MessageList from '@/components/chat/MessageList.vue'
 import ChatInput from '@/components/chat/ChatInput.vue'
 import StreamLoadingBar from '@/components/chat/StreamLoadingBar.vue'
 import TalkMode from '@/components/chat/TalkMode.vue'
+import ModelSelector from '@/components/chat/ModelSelector.vue'
 import { useEChartsRenderer } from '@/composables/useEChartsRenderer'
 
 // ============ Talk Mode ============
@@ -362,7 +346,7 @@ const uploadingAttachment = ref(false)
 
 // Dropdowns & menus
 const agentDropdownOpen = ref(false)
-const modelDropdownOpen = ref(false)
+
 const headerMenuOpen = ref(false)
 
 function selectAgent(agent: Agent) {
@@ -374,7 +358,6 @@ function selectAgent(agent: Agent) {
 }
 
 async function selectModel(value: string) {
-  modelDropdownOpen.value = false
   const [providerId, model] = value.split('::')
   if (!providerId || !model) return
   modelSaving.value = true
@@ -664,16 +647,18 @@ const modelPromptDesc = computed(() => {
   return t('chat.noAvailableModel')
 })
 
+const availableProviders = computed(() =>
+  providers.value.filter((p) => p.available && [...(p.models || []), ...(p.extraModels || [])].length > 0)
+)
+
 const eligibleModels = computed(() => {
-  return providers.value
-    .filter((provider) => provider.available)
-    .flatMap((provider) => {
-      const allModels = [...(provider.models || []), ...(provider.extraModels || [])]
-      return allModels.map((model) => ({
-        value: `${provider.id}::${model.id}`,
-        label: `${provider.name} / ${model.name || model.id}`,
-      }))
-    })
+  return availableProviders.value.flatMap((provider) => {
+    const allModels = [...(provider.models || []), ...(provider.extraModels || [])]
+    return allModels.map((model) => ({
+      value: `${provider.id}::${model.id}`,
+      label: `${provider.name} / ${model.name || model.id}`,
+    }))
+  })
 })
 
 // ============ 生命周期 ============
@@ -1883,94 +1868,7 @@ function handleCodeCopy(e: MouseEvent) {
 }
 
 /* Model selector */
-.model-selector-wrap {
-  position: relative;
-}
-
-.model-select-trigger {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  height: 34px;
-  padding: 0 12px;
-  border: 1px solid var(--mc-border);
-  border-radius: 12px;
-  background: var(--mc-panel-raised);
-  color: var(--mc-text-primary);
-  font-size: 13px;
-  cursor: pointer;
-  transition: all 0.15s;
-  white-space: nowrap;
-  max-width: 280px;
-}
-
-.model-select-trigger:hover {
-  border-color: var(--mc-primary);
-}
-
-.model-select-trigger:disabled {
-  opacity: 0.6;
-  cursor: not-allowed;
-}
-
-.model-select-trigger__name {
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
-
-.model-select-trigger__arrow {
-  flex-shrink: 0;
-  color: var(--mc-text-tertiary);
-  transition: transform 0.2s;
-}
-
-.model-select-trigger__arrow.open {
-  transform: rotate(180deg);
-}
-
-.model-dropdown {
-  position: absolute;
-  top: calc(100% + 4px);
-  right: 0;
-  z-index: 100;
-  min-width: 260px;
-  background: var(--mc-bg-elevated);
-  border: 1px solid var(--mc-border);
-  border-radius: 14px;
-  padding: 6px;
-  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.12);
-  max-height: 360px;
-  overflow-y: auto;
-}
-
-.model-dropdown-item {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 8px;
-  padding: 9px 12px;
-  border-radius: 10px;
-  cursor: pointer;
-  transition: background 0.12s;
-}
-
-.model-dropdown-item:hover {
-  background: var(--mc-bg-sunken);
-}
-
-.model-dropdown-item.active {
-  background: var(--mc-primary-bg);
-}
-
-.model-dropdown-item__name {
-  font-size: 13px;
-  color: var(--mc-text-primary);
-}
-
-.model-dropdown-item__check {
-  flex-shrink: 0;
-  color: var(--mc-primary);
-}
+/* Model selector styles moved to ModelSelector.vue */
 
 /* Header overflow menu */
 .header-overflow-wrap {

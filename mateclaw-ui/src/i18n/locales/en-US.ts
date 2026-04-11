@@ -118,6 +118,8 @@ export default {
     deleteConversationFailed: 'Failed to delete conversation',
     deleteConfirm: 'Delete this conversation? This cannot be undone.',
     switchModelFailed: 'Failed to switch model',
+    searchModel: 'Search models…',
+    noMatchModel: 'No matching models',
     uploadFailed: 'File upload failed',
     dropToUpload: 'Drop files or folders here',
     copyFailed: 'Copy failed',

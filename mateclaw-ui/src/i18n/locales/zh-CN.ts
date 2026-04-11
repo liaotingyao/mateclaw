@@ -118,6 +118,8 @@ export default {
     deleteConversationFailed: '删除会话失败',
     deleteConfirm: '确定删除这个会话？此操作不可恢复。',
     switchModelFailed: '切换模型失败',
+    searchModel: '搜索模型…',
+    noMatchModel: '没有匹配的模型',
     uploadFailed: '文件上传失败',
     dropToUpload: '拖放文件或文件夹到此处',
     copyFailed: '复制失败',
