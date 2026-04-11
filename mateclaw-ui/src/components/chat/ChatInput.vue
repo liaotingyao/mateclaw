@@ -279,7 +279,7 @@ const canSend = computed(() => {
 const inputPlaceholder = computed(() => {
   if (props.loading) {
     if (props.queuedMessage) return t('chat.queuedReplace')
-    return props.placeholder + ' (Enter to send / interrupt)'
+    return props.placeholder
   }
   return props.placeholder
 })
@@ -704,9 +704,9 @@ defineExpose({
 }
 
 .approval-bar__btn--deny:hover {
-  background: #fee2e2;
-  color: #dc2626;
-  border-color: #fca5a5;
+  background: var(--mc-danger-bg, #fee2e2);
+  color: var(--mc-danger, #ef4444);
+  border-color: var(--mc-danger-border, #fca5a5);
 }
 
 /* 输入区域容器 */
@@ -733,7 +733,7 @@ defineExpose({
   align-items: center;
   gap: 6px;
   font-size: 12px;
-  color: #3b82f6;
+  color: var(--mc-info, #3b82f6);
 }
 
 @media (max-width: 768px) {
@@ -779,19 +779,19 @@ defineExpose({
 }
 
 .queued-indicator__cancel:hover {
-  color: #ef4444;
-  border-color: #fca5a5;
-  background: #fee2e2;
+  color: var(--mc-danger, #ef4444);
+  border-color: var(--mc-danger-border, #fca5a5);
+  background: var(--mc-danger-bg, #fee2e2);
 }
 
 /* 中断发送按钮样式 */
 .send-btn.is-interrupt {
-  background: #f59e0b;
+  background: var(--mc-warning, #f59e0b);
   color: white;
 }
 
 .send-btn.is-interrupt:hover:not(:disabled) {
-  background: #d97706;
+  background: var(--mc-warning-hover, #d97706);
 }
 
 /* ===== 移动端适配 ===== */

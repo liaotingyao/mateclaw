@@ -59,7 +59,7 @@ const props = defineProps<{
   actions: BrowserAction[]
 }>()
 
-const expanded = ref(true)
+const expanded = ref(false)
 
 const latestScreenshot = computed(() => {
   for (let i = props.actions.length - 1; i >= 0; i--) {

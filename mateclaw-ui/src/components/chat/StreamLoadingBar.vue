@@ -5,8 +5,6 @@
       <div class="loading-copy">
         <span class="loading-text" :class="phaseTextClass">{{ statusText }}</span>
         <span v-if="runningToolName" class="loading-tool">{{ runningToolName }}</span>
-        <span v-if="statusDetail" class="loading-detail">{{ statusDetail }}</span>
-        <span v-if="slowHint" class="loading-slow">{{ slowHint }}</span>
       </div>
     </div>
     <div class="loading-right">
@@ -20,7 +18,6 @@
       </span>
       <div v-if="showStats" class="loading-stats">
         <span class="stat">{{ elapsedTime }}</span>
-        <span v-if="tokenDisplay > 0" class="stat">↓ {{ tokenDisplay }} tokens</span>
       </div>
     </div>
   </div>
@@ -62,125 +59,84 @@ const props = withDefaults(defineProps<Props>(), {
 
 const { t } = useI18n()
 
-// Phase-aware 状态文本（i18n）
-const phaseI18nMap: Record<string, string> = {
-  preparing_context: 'chat.streamPreparingContext',
-  reading_memory: 'chat.streamReadingMemory',
-  reasoning: 'chat.streamReasoning',
-  drafting_answer: 'chat.streamDraftingAnswer',
-  summarizing_observations: 'chat.streamSummarizingObservations',
+// 将 14 个内部阶段映射为 3 个面向用户的状态：思考中 / 执行中 / 撰写中
+const userFacingPhase = computed(() => {
+  switch (props.phase) {
+    case 'preparing_context':
+    case 'reading_memory':
+    case 'reasoning':
+    case 'thinking':
+    case 'summarizing_observations':
+    case 'queued':
+    case 'reconnecting':
+      return 'thinking'
+    case 'executing_tool':
+    case 'awaiting_approval':
+      return 'working'
+    case 'drafting_answer':
+    case 'streaming':
+    case 'finalizing':
+      return 'writing'
+    case 'failed':
+      return 'failed'
+    case 'interrupting':
+    case 'stopped':
+      return 'stopped'
+    default:
+      return 'thinking'
+  }
+})
+
+const userPhaseI18nMap: Record<string, string> = {
   thinking: 'chat.streamThinking',
-  streaming: 'chat.streamGenerating',
-  executing_tool: 'chat.streamExecutingTool',
-  awaiting_approval: 'chat.streamAwaitingApproval',
-  finalizing: 'chat.streamFinalizing',
+  working: 'chat.streamExecutingTool',
+  writing: 'chat.streamGenerating',
   failed: 'chat.streamFailed',
-  interrupting: 'chat.streamInterrupting',
-  queued: 'chat.streamQueued',
-  reconnecting: 'chat.streamReconnecting',
   stopped: 'chat.streamStopped',
-  completed: 'chat.streamCompleted',
-  idle: '',
 }
 
 const statusText = computed(() => {
-  const key = phaseI18nMap[props.phase]
+  const key = userPhaseI18nMap[userFacingPhase.value]
   if (!key) return ''
   return t(key)
 })
 
 const phaseIcon = computed(() => {
-  switch (props.phase) {
-    case 'preparing_context': return '◔'
-    case 'reading_memory': return '⌕'
-    case 'reasoning': return '◐'
-    case 'drafting_answer': return '✎'
-    case 'summarizing_observations': return '≋'
+  switch (userFacingPhase.value) {
     case 'thinking': return '◐'
-    case 'streaming': return '▸'
-    case 'executing_tool': return '⚙'
-    case 'awaiting_approval': return '⏸'
-    case 'finalizing': return '✓'
+    case 'working': return '⚙'
+    case 'writing': return '▸'
     case 'failed': return '!'
-    case 'interrupting': return '⊘'
-    case 'queued': return '◷'
-    case 'reconnecting': return '↻'
-    default: return '+'
+    case 'stopped': return '⊘'
+    default: return '◐'
   }
 })
 
 const phaseIconClass = computed(() => {
-  switch (props.phase) {
-    case 'awaiting_approval': return 'icon-paused'
-    case 'failed': return 'icon-warning'
-    case 'interrupting': return 'icon-warning'
-    case 'queued': return 'icon-queued'
-    default: return 'icon-active'
+  switch (userFacingPhase.value) {
+    case 'failed':
+    case 'stopped':
+      return 'icon-warning'
+    default:
+      return 'icon-active'
   }
 })
 
 const phaseTextClass = computed(() => {
-  switch (props.phase) {
-    case 'awaiting_approval': return 'text-amber'
-    case 'failed': return 'text-red'
-    case 'interrupting': return 'text-red'
-    case 'queued': return 'text-blue'
-    default: return ''
+  switch (userFacingPhase.value) {
+    case 'failed':
+    case 'stopped':
+      return 'text-red'
+    default:
+      return ''
   }
 })
 
-const detailI18nMap: Record<string, string> = {
-  preparing_context: 'chat.streamPreparingContextDetail',
-  reading_memory: 'chat.streamReadingMemoryDetail',
-  reasoning: 'chat.streamReasoningDetail',
-  drafting_answer: 'chat.streamDraftingAnswerDetail',
-  summarizing_observations: 'chat.streamSummarizingObservationsDetail',
-  thinking: 'chat.streamThinkingDetail',
-  streaming: 'chat.streamGeneratingDetail',
-  executing_tool: 'chat.streamExecutingToolDetail',
-  awaiting_approval: 'chat.streamAwaitingApprovalDetail',
-  finalizing: 'chat.streamFinalizingDetail',
-  failed: 'chat.streamFailedDetail',
-}
-
-const statusDetail = computed(() => {
-  if (props.phaseInfo?.phase) {
-    const key = detailI18nMap[props.phaseInfo.phase]
-    if (key) return t(key)
-  }
-  const key = detailI18nMap[props.phase]
-  return key ? t(key) : ''
-})
-
-const slowHint = computed(() => {
-  const secs = elapsedSeconds.value
-  if (props.phase === 'summarizing_observations' && secs >= 15) {
-    return t('chat.streamSlowSummarizing')
-  }
-  if ((props.phase === 'reasoning' || props.phase === 'thinking') && secs >= 20) {
-    return t('chat.streamSlowReasoning')
-  }
-  if (secs >= 45) {
-    return t('chat.streamSlowGeneral')
-  }
-  if (secs >= 8) {
-    return t('chat.streamSlowShort')
-  }
-  return ''
-})
 
 // 耗时统计
 const elapsedSeconds = ref(0)
 const elapsedTime = ref('0s')
 
-// Token 计数
-const estimatedTokens = ref(0)
-const tokenDisplay = computed(() => {
-  if (props.completionTokens && props.completionTokens > 0) {
-    return props.completionTokens
-  }
-  return estimatedTokens.value
-})
 
 let timerInterval: ReturnType<typeof setInterval> | null = null
 
@@ -189,7 +145,6 @@ watch(() => props.isLoading, (loading) => {
     if (timerInterval) clearInterval(timerInterval)
     elapsedSeconds.value = 0
     elapsedTime.value = '0s'
-    estimatedTokens.value = 0
 
     timerInterval = setInterval(() => {
       elapsedSeconds.value += 1
@@ -210,11 +165,6 @@ watch(() => props.isLoading, (loading) => {
   }
 }, { immediate: true })
 
-watch(() => props.completionTokens, (tokens) => {
-  if (tokens && tokens > 0) {
-    estimatedTokens.value = 0
-  }
-})
 
 onBeforeUnmount(() => {
   if (timerInterval) {
@@ -239,7 +189,7 @@ onBeforeUnmount(() => {
   display: flex;
   align-items: flex-start;
   gap: 6px;
-  color: #f97316;
+  color: var(--mc-primary, #d96d46);
 }
 
 .loading-copy {
@@ -255,56 +205,34 @@ onBeforeUnmount(() => {
 }
 
 .icon-active {
-  animation: icon-pulse 1s ease-in-out infinite;
-  color: #f97316;
-}
-
-.icon-paused {
-  color: #f59e0b;
-  animation: none;
+  animation: icon-pulse 1.2s ease-in-out infinite;
+  color: var(--mc-primary, #d96d46);
 }
 
 .icon-warning {
-  color: #ef4444;
-  animation: icon-pulse 0.5s ease-in-out infinite;
-}
-
-.icon-queued {
-  color: #3b82f6;
+  color: var(--mc-danger, #ef4444);
   animation: none;
 }
 
 .loading-text {
   font-weight: 500;
-  color: #f97316;
+  color: var(--mc-primary, #d96d46);
 }
 
-.text-amber { color: #f59e0b; }
-.text-red { color: #ef4444; }
-.text-blue { color: #3b82f6; }
+.text-red { color: var(--mc-danger, #ef4444); }
 
 .loading-tool {
   align-self: flex-start;
   font-family: ui-monospace, 'SFMono-Regular', Consolas, monospace;
   font-size: 12px;
-  background: rgba(249, 115, 22, 0.1);
+  background: var(--mc-primary-light, rgba(217, 119, 87, 0.1));
   padding: 1px 6px;
   border-radius: 4px;
-  color: #f97316;
+  color: var(--mc-primary, #d96d46);
   max-width: 180px;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
-}
-
-.loading-detail {
-  font-size: 12px;
-  color: var(--mc-text-secondary, #94a3b8);
-}
-
-.loading-slow {
-  font-size: 12px;
-  color: #f59e0b;
 }
 
 .loading-right {
@@ -318,7 +246,7 @@ onBeforeUnmount(() => {
   align-items: center;
   gap: 4px;
   font-size: 12px;
-  color: #3b82f6;
+  color: var(--mc-info, #3b82f6);
   background: rgba(59, 130, 246, 0.08);
   padding: 2px 8px;
   border-radius: 10px;
@@ -329,7 +257,7 @@ onBeforeUnmount(() => {
   align-items: center;
   gap: 8px;
   font-size: 12px;
-  color: #cbd5e1;
+  color: var(--mc-text-tertiary, #94a3b8);
 }
 
 .stat {

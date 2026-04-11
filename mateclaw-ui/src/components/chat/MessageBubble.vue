@@ -21,6 +21,8 @@
         <!-- ===== 分段式渲染模式（Claude Code 风格）===== -->
         <template v-if="useSegmentedView">
           <div class="segments-view">
+            <!-- 计划步骤面板（始终显示在 segments 之上） -->
+            <PlanStepsPanel v-if="planMeta" :plan="planMeta" :is-generating="isGenerating" />
             <template v-for="(seg, index) in segments" :key="seg.id">
               <ThinkingSegment v-if="seg.type === 'thinking'" :segment="seg" />
               <ToolCallSegment v-if="seg.type === 'tool_call'" :segment="seg" />
@@ -71,21 +73,7 @@
           <Transition name="thinking-slide">
             <div v-if="executionExpanded" class="execution-content">
               <!-- Plan 步骤进度 -->
-              <div v-if="planMeta" class="plan-steps">
-                <div class="plan-steps__title">Plan ({{ planMeta.steps.length }} steps)</div>
-                <div
-                  v-for="(step, i) in planMeta.steps"
-                  :key="i"
-                  class="plan-step"
-                  :class="{
-                    'plan-step--done': planMeta.stepResults?.[i]?.status === 'completed',
-                    'plan-step--active': i === planMeta.currentStep && isGenerating
-                  }"
-                >
-                  <span class="plan-step__index">{{ i + 1 }}</span>
-                  <span class="plan-step__text">{{ step }}</span>
-                </div>
-              </div>
+              <PlanStepsPanel v-if="planMeta" :plan="planMeta" :is-generating="isGenerating" />
 
               <!-- 工具调用列表 -->
               <div v-if="toolCallsMeta.length" class="tool-calls">
@@ -97,9 +85,9 @@
                 >
                   <span class="tool-call__status">
                     <el-icon v-if="tc.status === 'running'" class="spin"><Loading /></el-icon>
-                    <el-icon v-else-if="tc.status === 'awaiting_approval'" style="color: #f59e0b;"><WarningFilled /></el-icon>
-                    <el-icon v-else-if="tc.success !== false" style="color: #10b981;"><Select /></el-icon>
-                    <el-icon v-else style="color: #ef4444;"><CloseBold /></el-icon>
+                    <el-icon v-else-if="tc.status === 'awaiting_approval'" class="tc-icon--warning"><WarningFilled /></el-icon>
+                    <el-icon v-else-if="tc.success !== false" class="tc-icon--success"><Select /></el-icon>
+                    <el-icon v-else class="tc-icon--error"><CloseBold /></el-icon>
                   </span>
                   <span class="tool-call__name">{{ tc.name }}</span>
                   <span class="tool-call__args" v-if="tc.arguments">{{ truncateArgs(tc.arguments) }}</span>
@@ -116,42 +104,18 @@
         <!-- 浏览器执行时间线 -->
         <BrowserTimeline v-if="browserActionsMeta.length" :actions="browserActionsMeta" />
 
-        <!-- 工具审批面板 -->
-        <div v-if="pendingApproval" class="approval-section" :class="approvalSeverityClass">
-          <div class="approval-header">
-            <el-icon><WarningFilled /></el-icon>
-            <span class="approval-title">{{ $t('chat.approvalRequired') || 'Approval Required' }}</span>
-            <span v-if="pendingApproval.maxSeverity" class="approval-severity-badge" :class="'severity-' + pendingApproval.maxSeverity?.toLowerCase()">
-              {{ pendingApproval.maxSeverity }}
-            </span>
-          </div>
-          <div class="approval-detail">
-            <div class="approval-tool"><strong>Tool:</strong> {{ pendingApproval.toolName }}</div>
-            <div v-if="pendingApproval.summary" class="approval-summary">{{ pendingApproval.summary }}</div>
-            <div class="approval-reason"><strong>Reason:</strong> {{ pendingApproval.reason }}</div>
-            <div class="approval-args" v-if="pendingApproval.arguments">
-              <strong>Args:</strong> <code>{{ truncateArgs(pendingApproval.arguments) }}</code>
-            </div>
-          </div>
-          <!-- Findings List -->
-          <div v-if="pendingApproval.findings?.length" class="approval-findings">
-            <div v-for="(finding, idx) in pendingApproval.findings" :key="idx" class="approval-finding-item">
-              <span class="finding-severity-dot" :class="'dot-' + finding.severity?.toLowerCase()"></span>
-              <span class="finding-category-tag">{{ finding.category }}</span>
-              <span class="finding-text">{{ finding.title }}</span>
-              <span v-if="finding.remediation" class="finding-fix">{{ finding.remediation }}</span>
-            </div>
-          </div>
-          <div v-if="pendingApproval.status === 'pending_approval'" class="approval-waiting">
-            <el-icon class="approval-waiting__spin"><Loading /></el-icon>
-            <span>{{ $t('chat.approvalWaiting') }}</span>
-          </div>
-          <div v-else-if="pendingApproval.status === 'approved'" class="approval-resolved approval-resolved--approved">
-            {{ $t('chat.approved') }}
-          </div>
-          <div v-else class="approval-resolved approval-resolved--denied">
-            {{ $t('chat.denied') }}
-          </div>
+        <!-- 工具审批状态（极简一行，操作在输入栏） -->
+        <div v-if="pendingApproval" class="approval-inline">
+          <el-icon class="approval-inline__icon"><WarningFilled /></el-icon>
+          <span v-if="pendingApproval.status === 'pending_approval'" class="approval-inline__text">
+            {{ $t('chat.approvalWaiting') }} <code>{{ pendingApproval.toolName }}</code>
+          </span>
+          <span v-else-if="pendingApproval.status === 'approved'" class="approval-inline__text approval-inline--approved">
+            {{ $t('chat.approved') }}: <code>{{ pendingApproval.toolName }}</code>
+          </span>
+          <span v-else class="approval-inline__text approval-inline--denied">
+            {{ $t('chat.denied') }}: <code>{{ pendingApproval.toolName }}</code>
+          </span>
         </div>
 
         <!-- 主要内容 -->
@@ -164,10 +128,6 @@
           <TypingCursor v-if="showCursor" :typing="isGenerating" />
         </div>
 
-        <!-- 加载指示器 -->
-        <div v-if="showLoadingIndicator" class="typing-indicator">
-          <span></span><span></span><span></span>
-        </div>
 
         <!-- 停止指示器 -->
         <div v-if="status === 'stopped' || status === 'interrupted'" class="stopped-indicator">
@@ -311,6 +271,7 @@ import BrowserTimeline from './BrowserTimeline.vue'
 import ToolCallSegment from './ToolCallSegment.vue'
 import ThinkingSegment from './ThinkingSegment.vue'
 import ContentSegment from './ContentSegment.vue'
+import PlanStepsPanel from './PlanStepsPanel.vue'
 import type { BrowserAction } from './BrowserTimeline.vue'
 import type { Message, MessageSegment, ChatAttachment, ToolCallMeta, PlanMeta } from '@/types'
 import type { ChatErrorInfo } from '@/types/chatError'
@@ -730,12 +691,18 @@ const showExecutionPanel = computed(() => {
     || !!pendingApproval.value
 })
 
-// 自动展开执行面板（工具调用时或审批时）
+// 自动展开执行面板（工具调用时、审批时或计划创建时）
 watch(toolCallsMeta, (calls) => {
   if (calls.length > 0 && isGenerating.value) {
     executionExpanded.value = true
   }
 }, { deep: true })
+
+watch(planMeta, (plan) => {
+  if (plan && plan.steps?.length > 0 && isGenerating.value) {
+    executionExpanded.value = true
+  }
+})
 
 watch(pendingApproval, (approval) => {
   if (approval?.status === 'pending_approval') {
@@ -1051,6 +1018,9 @@ watch(isGenerating, (generating) => {
   align-items: center;
   flex-shrink: 0;
 }
+.tc-icon--warning { color: var(--mc-warning, #f59e0b); }
+.tc-icon--success { color: var(--mc-success, #10b981); }
+.tc-icon--error { color: var(--mc-danger, #ef4444); }
 
 .tool-call__name {
   font-weight: 600;
@@ -1065,61 +1035,7 @@ watch(isGenerating, (generating) => {
   flex: 1;
 }
 
-.plan-steps {
-  margin-bottom: 10px;
-}
-
-.plan-steps__title {
-  font-size: 12px;
-  font-weight: 600;
-  color: var(--mc-text-secondary, #64748b);
-  margin-bottom: 6px;
-}
-
-.plan-step {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  padding: 4px 0;
-  font-size: 12px;
-  color: var(--mc-text-tertiary, #94a3b8);
-}
-
-.plan-step--done {
-  color: #10b981;
-}
-
-.plan-step--active {
-  color: var(--mc-primary, #D97757);
-  font-weight: 600;
-}
-
-.plan-step__index {
-  width: 20px;
-  height: 20px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  border-radius: 50%;
-  background: var(--mc-bg-elevated, #f8fafc);
-  font-size: 11px;
-  font-weight: 600;
-  flex-shrink: 0;
-}
-
-.plan-step--done .plan-step__index {
-  background: rgba(16, 185, 129, 0.1);
-}
-
-.plan-step--active .plan-step__index {
-  background: rgba(217, 119, 87, 0.1);
-}
-
-.plan-step__text {
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
+/* plan-steps 样式已迁移到 PlanStepsPanel.vue 组件 */
 
 .execution-empty {
   font-size: 12px;
@@ -1137,172 +1053,44 @@ watch(isGenerating, (generating) => {
 }
 
 /* ==================== 审批面板 ==================== */
-.approval-section {
-  margin-bottom: 12px;
-  padding: 12px 14px;
-  border: 1px solid #f59e0b;
-  border-left: 3px solid #f59e0b;
-  border-radius: 10px;
-  background: rgba(245, 158, 11, 0.06);
-}
-
-.approval-section.approval-severity-critical {
-  border-color: #ef4444;
-  border-left-color: #ef4444;
-  background: rgba(239, 68, 68, 0.06);
-}
-
-.approval-section.approval-severity-high {
-  border-color: #f97316;
-  border-left-color: #f97316;
-  background: rgba(249, 115, 22, 0.06);
-}
-
-.approval-section.approval-severity-medium {
-  border-color: #f59e0b;
-  border-left-color: #f59e0b;
-  background: rgba(245, 158, 11, 0.06);
-}
-
-.approval-section.approval-severity-low {
-  border-color: #3b82f6;
-  border-left-color: #3b82f6;
-  background: rgba(59, 130, 246, 0.06);
-}
-
-.approval-section.approval-severity-info {
-  border-color: #6b7280;
-  border-left-color: #6b7280;
-  background: rgba(107, 114, 128, 0.06);
-}
-
-.approval-header {
+/* 极简审批状态（一行式） */
+.approval-inline {
   display: flex;
   align-items: center;
-  gap: 8px;
-  color: #f59e0b;
-  font-weight: 600;
-  font-size: 14px;
+  gap: 6px;
+  padding: 8px 12px;
   margin-bottom: 8px;
-}
-
-.approval-title {
   font-size: 13px;
-}
-
-.approval-detail {
-  font-size: 12px;
   color: var(--mc-text-secondary, #64748b);
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
+  background: var(--mc-bg-muted, #f9f7f5);
+  border-radius: 8px;
 }
 
-.approval-detail code {
-  font-size: 11px;
-  background: var(--mc-inline-code-bg, #f1f5f9);
-  padding: 1px 4px;
-  border-radius: 4px;
-}
-
-.approval-waiting {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  margin-top: 10px;
-  font-size: 12px;
-  color: var(--mc-text-tertiary, #94a3b8);
-}
-
-.approval-waiting__spin {
-  animation: spin 1s linear infinite;
+.approval-inline__icon {
+  color: var(--mc-warning, #f59e0b);
   flex-shrink: 0;
 }
 
-.approval-resolved {
-  margin-top: 10px;
-  font-size: 13px;
-  font-weight: 600;
-}
-
-.approval-resolved--approved {
-  color: #10b981;
-}
-
-.approval-severity-badge {
-  display: inline-block;
-  padding: 1px 7px;
-  border-radius: 4px;
-  font-size: 10px;
-  font-weight: 700;
-  text-transform: uppercase;
-  margin-left: auto;
-}
-
-.approval-severity-badge.severity-critical { background: rgba(239, 68, 68, 0.15); color: #ef4444; }
-.approval-severity-badge.severity-high { background: rgba(249, 115, 22, 0.15); color: #f97316; }
-.approval-severity-badge.severity-medium { background: rgba(245, 158, 11, 0.15); color: #f59e0b; }
-.approval-severity-badge.severity-low { background: rgba(59, 130, 246, 0.15); color: #3b82f6; }
-.approval-severity-badge.severity-info { background: rgba(107, 114, 128, 0.15); color: #6b7280; }
-
-.approval-summary {
+.approval-inline__text code {
   font-size: 12px;
-  color: var(--mc-text-primary, #334155);
-  font-weight: 500;
-  padding: 4px 0;
-}
-
-.approval-findings {
-  margin-top: 8px;
-  padding: 8px 10px;
-  background: var(--mc-bg-sunken, rgba(0, 0, 0, 0.03));
-  border-radius: 6px;
-  display: flex;
-  flex-direction: column;
-  gap: 5px;
-}
-
-.approval-finding-item {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  font-size: 11px;
-}
-
-.finding-severity-dot {
-  width: 6px;
-  height: 6px;
-  border-radius: 50%;
-  flex-shrink: 0;
-}
-
-.finding-severity-dot.dot-critical { background: #ef4444; }
-.finding-severity-dot.dot-high { background: #f97316; }
-.finding-severity-dot.dot-medium { background: #f59e0b; }
-.finding-severity-dot.dot-low { background: #3b82f6; }
-.finding-severity-dot.dot-info { background: #6b7280; }
-
-.finding-category-tag {
-  font-family: 'SF Mono', 'Fira Code', monospace;
-  font-size: 10px;
-  color: var(--mc-text-tertiary, #94a3b8);
   background: var(--mc-inline-code-bg, #f1f5f9);
   padding: 1px 5px;
-  border-radius: 3px;
+  border-radius: 4px;
+  font-weight: 500;
 }
 
-.finding-text {
-  color: var(--mc-text-secondary, #64748b);
+.approval-inline--approved {
+  color: var(--mc-success, #10b981);
+}
+.approval-inline--approved .approval-inline__icon {
+  color: var(--mc-success, #10b981);
 }
 
-.finding-fix {
-  color: var(--mc-text-tertiary, #94a3b8);
-  font-style: italic;
-  margin-left: auto;
+.approval-inline--denied {
+  color: var(--mc-danger, #ef4444);
 }
-
-.approval-resolved--denied {
-  color: #ef4444;
+.approval-inline--denied .approval-inline__icon {
+  color: var(--mc-danger, #ef4444);
 }
 
 /* ==================== 操作栏 ==================== */
@@ -1375,30 +1163,6 @@ watch(isGenerating, (generating) => {
 .msg-content.with-cursor {
   display: inline;
 }
-
-/* 加载指示器 */
-.typing-indicator {
-  display: flex;
-  gap: 4px;
-  padding: 4px 0;
-}
-
-.typing-indicator span {
-  width: 6px;
-  height: 6px;
-  background: var(--mc-text-tertiary, #94a3b8);
-  border-radius: 50%;
-  animation: bounce 1.2s infinite;
-}
-
-.typing-indicator span:nth-child(2) { animation-delay: 0.2s; }
-.typing-indicator span:nth-child(3) { animation-delay: 0.4s; }
-
-@keyframes bounce {
-  0%, 60%, 100% { transform: translateY(0); }
-  30% { transform: translateY(-6px); }
-}
-
 
 /* 状态指示器 */
 .stopped-indicator {

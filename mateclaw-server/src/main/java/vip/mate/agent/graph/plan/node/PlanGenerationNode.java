@@ -10,6 +10,7 @@ import org.springframework.ai.chat.messages.SystemMessage;
 import org.springframework.ai.chat.messages.UserMessage;
 import org.springframework.ai.chat.model.ChatModel;
 import org.springframework.ai.chat.prompt.Prompt;
+import vip.mate.agent.AgentToolSet;
 import vip.mate.agent.GraphEventPublisher;
 import vip.mate.agent.graph.NodeStreamingChatHelper;
 import vip.mate.agent.graph.plan.state.PlanStateAccessor;
@@ -22,6 +23,7 @@ import vip.mate.planning.service.PlanningService;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
+import java.util.stream.Collectors;
 
 /**
  * 计划生成节点
@@ -47,6 +49,7 @@ public class PlanGenerationNode implements NodeAction {
     private final PlanningService planningService;
     private final NodeStreamingChatHelper streamingHelper;
     private final ConversationWindowManager conversationWindowManager;
+    private final AgentToolSet toolSet;
     private final ObjectMapper objectMapper = new ObjectMapper();
 
     private static final String PLANNING_PROMPT = """
@@ -71,25 +74,27 @@ public class PlanGenerationNode implements NodeAction {
             - 每个步骤必须是可执行动作，不要写空话。
             - 默认不要把 MEMORY.md、PROFILE.md、记忆文件当成独立步骤；但如果用户目标明显依赖历史偏好、长期约束、过往决策或持续上下文，可以加入必要的记忆读取步骤。
             - 不要把技能文件当成独立步骤，除非用户任务明确要求。
-            - 如果用户目标包含执行、修改、搜索、分析、生成文件、调用工具等多步行为，优先返回规划。
+            - 如果用户目标需要调用任何工具才能完成（包括记忆读写、文件操作、搜索、命令执行等），必须返回 needs_planning: true。只有纯知识问答（不需要调用任何工具的简单问题）才返回 needs_planning: false。
             - 如果无法确定，也必须返回合法 JSON，不能输出自然语言。
             """;
 
     public PlanGenerationNode(ChatModel chatModel, PlanningService planningService,
                               NodeStreamingChatHelper streamingHelper,
-                              ConversationWindowManager conversationWindowManager) {
+                              ConversationWindowManager conversationWindowManager,
+                              AgentToolSet toolSet) {
         this.chatModel = chatModel;
         this.planningService = planningService;
         this.streamingHelper = streamingHelper;
         this.conversationWindowManager = conversationWindowManager;
+        this.toolSet = toolSet;
     }
 
     /**
-     * @deprecated Use constructor with NodeStreamingChatHelper
+     * @deprecated Use constructor with full parameters
      */
     @Deprecated
     public PlanGenerationNode(ChatModel chatModel, PlanningService planningService) {
-        this(chatModel, planningService, null, null);
+        this(chatModel, planningService, null, null, null);
     }
 
     @Override
@@ -123,11 +128,23 @@ public class PlanGenerationNode implements NodeAction {
         }
 
         try {
-            // 构建 prompt 消息列表：system + 历史上下文 + 当前规划请求
+            // 构建 prompt 消息列表：PLANNING_PROMPT 作为独立 system message，
+            // 不拼接完整 systemPrompt（wiki/技能/记忆指南等与规划决策无关，
+            // 拼接后会稀释 PLANNING_PROMPT 的指令优先级）
             List<Message> promptMessages = new ArrayList<>();
-            promptMessages.add(new SystemMessage(systemPrompt + "\n\n" + PLANNING_PROMPT));
+            promptMessages.add(new SystemMessage(PLANNING_PROMPT));
             // 注入运行时上下文（当前时间）
             promptMessages.add(new UserMessage(RuntimeContextInjector.buildContextMessage()));
+
+            // 注入可用工具名称，帮助 LLM 判断用户目标是否需要工具
+            if (toolSet != null && !toolSet.callbacks().isEmpty()) {
+                String toolNames = toolSet.callbacks().stream()
+                        .map(cb -> cb.getToolDefinition().name())
+                        .collect(Collectors.joining(", "));
+                promptMessages.add(new UserMessage(
+                        "你可以使用以下工具：" + toolNames
+                                + "\n如果用户目标需要调用任何工具才能完成，必须返回 needs_planning: true。"));
+            }
 
             // 注入 working context（对话历史摘要），让规划能感知之前对话的约束和补充条件
             String workingContext = accessor.workingContext();
