@@ -29,19 +29,16 @@ public class ImageGenerateTool {
     private final SystemSettingService systemSettingService;
     private final AsyncTaskService asyncTaskService;
 
-    @Tool(description = "图片生成工具，支持以下 action：\n"
-            + "- generate（默认）：生成图片。提供 prompt 描述图片内容，可选 size/aspectRatio/model/count\n"
-            + "- list：列出所有可用的图片 Provider 及其支持的模型和能力\n"
-            + "- status：查看当前会话中正在进行的图片生成任务状态\n"
-            + "部分 Provider 是异步生成（30秒-2分钟），完成后自动显示在对话中。")
+    @Tool(description = "Image generation tool. Supports actions: generate (default), list (show available providers), "
+            + "status (check task status). Some providers are async (30s-2min), results auto-displayed in conversation.")
     public String image_generate(
-            @ToolParam(description = "操作类型: generate（生成图片）、list（列出可用 Provider）、status（查看任务状态），默认 generate", required = false) String action,
-            @ToolParam(description = "图片内容描述，尽量详细（generate 时必填）", required = false) String prompt,
-            @ToolParam(description = "图片尺寸: 1024x1024 / 1024x1792 / 1792x1024", required = false) String size,
-            @ToolParam(description = "画面比例: 1:1 / 16:9 / 9:16，默认 1:1", required = false) String aspectRatio,
-            @ToolParam(description = "生成数量（1-4），默认 1", required = false) Integer count,
-            @ToolParam(description = "指定模型名称（可选）", required = false) String model,
-            @ToolParam(description = "查询指定任务 ID 的状态（status 模式时使用）", required = false) String taskId
+            @ToolParam(description = "Action type: generate, list, status. Default: generate", required = false) String action,
+            @ToolParam(description = "Image content description, be detailed (required for generate)", required = false) String prompt,
+            @ToolParam(description = "Image size: 1024x1024 / 1024x1792 / 1792x1024", required = false) String size,
+            @ToolParam(description = "Aspect ratio: 1:1 / 16:9 / 9:16, default 1:1", required = false) String aspectRatio,
+            @ToolParam(description = "Generation count (1-4), default 1", required = false) Integer count,
+            @ToolParam(description = "Model name (optional)", required = false) String model,
+            @ToolParam(description = "Task ID to check status (for status action)", required = false) String taskId
     ) {
         String normalizedAction = (action == null || action.isBlank()) ? "generate" : action.trim().toLowerCase();
 

@@ -30,7 +30,7 @@ public class GlobalExceptionHandler {
             return null;
         }
         log.warn("Async request timeout: {} {}", request.getMethod(), request.getRequestURI());
-        return R.fail(503, "请求超时，请稍后重试");
+        return R.fail(503, "Request timeout, please try again");
     }
 
     @ExceptionHandler(MateClawException.class)
@@ -44,7 +44,7 @@ public class GlobalExceptionHandler {
         String msg = e.getBindingResult().getFieldErrors().stream()
                 .map(fe -> fe.getField() + ": " + fe.getDefaultMessage())
                 .findFirst()
-                .orElse("参数校验失败");
+                .orElse("Validation failed");
         log.warn("Validation failed: {}", msg);
         return R.fail(400, msg);
     }
@@ -60,7 +60,7 @@ public class GlobalExceptionHandler {
             return null;
         }
         log.error("Unexpected error", e);
-        return R.fail("系统内部错误：" + e.getMessage());
+        return R.fail("Internal error: " + e.getMessage());
     }
 
     /**

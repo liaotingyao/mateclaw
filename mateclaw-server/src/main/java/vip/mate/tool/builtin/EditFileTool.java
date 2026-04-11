@@ -28,32 +28,35 @@ import java.nio.file.Paths;
  */
 @Slf4j
 @Component
+@lombok.RequiredArgsConstructor
 public class EditFileTool {
 
-    @Tool(description = "通过查找替换编辑文件内容。找到 old_text 精确匹配的文本并替换为 new_text。"
-            + "返回包含 filePath、replacements（替换次数）的结构化 JSON 结果。"
-            + "注意：需要用户审批确认。如果 old_text 在文件中出现多次，默认只替换第一处，设置 replaceAll=true 替换全部。")
+    private final vip.mate.i18n.I18nService i18n;
+
+    @Tool(description = "Edit file content via find-and-replace. Finds exact match of old_text and replaces with new_text. "
+            + "Returns structured JSON with filePath, replacements count. "
+            + "Requires user approval. Replaces first occurrence by default; set replaceAll=true for all.")
     public String edit_file(
-            @ToolParam(description = "文件的绝对路径或相对路径") String filePath,
-            @ToolParam(description = "要查找的原始文本（精确匹配）") String oldText,
-            @ToolParam(description = "替换后的新文本") String newText,
-            @ToolParam(description = "是否替换所有匹配项，默认 false（仅替换第一处）", required = false) Boolean replaceAll) {
+            @ToolParam(description = "Absolute or relative file path") String filePath,
+            @ToolParam(description = "Original text to find (exact match)") String oldText,
+            @ToolParam(description = "Replacement text") String newText,
+            @ToolParam(description = "Replace all occurrences, default false (first only)", required = false) Boolean replaceAll) {
 
         JSONObject result = new JSONObject();
         result.set("filePath", filePath);
 
         try {
             if (filePath == null || filePath.isBlank()) {
-                return errorResult(filePath, "文件路径不能为空");
+                return errorResult(filePath, i18n.msg("tool.edit_file.error.path_empty"));
             }
             if (oldText == null || oldText.isEmpty()) {
-                return errorResult(filePath, "oldText 不能为空");
+                return errorResult(filePath, i18n.msg("tool.edit_file.error.old_text_empty"));
             }
             if (newText == null) {
                 newText = "";
             }
             if (oldText.equals(newText)) {
-                return errorResult(filePath, "oldText 和 newText 内容相同，无需替换");
+                return errorResult(filePath, i18n.msg("tool.edit_file.error.same_text"));
             }
 
             Path path;
@@ -64,13 +67,13 @@ public class EditFileTool {
             }
 
             if (!Files.exists(path)) {
-                return errorResult(filePath, "文件不存在: " + path);
+                return errorResult(filePath, i18n.msg("tool.edit_file.error.not_found", path));
             }
             if (Files.isDirectory(path)) {
-                return errorResult(filePath, "路径是目录而非文件: " + path);
+                return errorResult(filePath, i18n.msg("tool.edit_file.error.is_directory", path));
             }
             if (!Files.isReadable(path) || !Files.isWritable(path)) {
-                return errorResult(filePath, "文件不可读写: " + path);
+                return errorResult(filePath, i18n.msg("tool.edit_file.error.not_rw", path));
             }
 
             // 读取文件内容
@@ -78,7 +81,7 @@ public class EditFileTool {
 
             // 检查 oldText 是否存在
             if (!content.contains(oldText)) {
-                return errorResult(filePath, "文件中未找到指定的 oldText，请检查文本是否精确匹配（包括空格和换行）");
+                return errorResult(filePath, i18n.msg("tool.edit_file.error.old_not_found"));
             }
 
             // 执行替换
@@ -102,13 +105,13 @@ public class EditFileTool {
 
             result.set("replacements", replacements);
             result.set("replaceAll", doReplaceAll);
-            result.set("message", "编辑成功: 替换了 " + replacements + " 处匹配");
+            result.set("message", "Edit successful: " + replacements + " replacement(s)");
 
             log.info("[EditFile] Edited {}: {} replacement(s)", path, replacements);
 
         } catch (Exception e) {
             log.error("[EditFile] Failed to edit file: {}", e.getMessage(), e);
-            return errorResult(filePath, "编辑文件异常: " + e.getMessage());
+            return errorResult(filePath, i18n.msg("tool.edit_file.error.edit_exception", e.getMessage()));
         }
 
         return JSONUtil.toJsonPrettyStr(result);

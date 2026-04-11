@@ -33,19 +33,22 @@ import java.util.concurrent.TimeUnit;
  */
 @Slf4j
 @Component
+@lombok.RequiredArgsConstructor
 public class ShellExecuteTool {
+
+    private final vip.mate.i18n.I18nService i18n;
 
     private static final int DEFAULT_TIMEOUT_SECONDS = 60;
     private static final int MAX_OUTPUT_BYTES = 10_000;
     private static final boolean IS_WINDOWS = System.getProperty("os.name", "")
             .toLowerCase(Locale.ROOT).contains("win");
 
-    @Tool(description = "在本地服务器上执行 Shell 命令。用于执行系统命令、查看文件、运行脚本等操作。"
-            + "Windows 下使用 cmd.exe，Linux/macOS 下使用 /bin/sh。"
-            + "危险操作（如 rm -rf、格式化磁盘等）会触发安全审批。返回包含 exitCode、stdout、stderr、timedOut 的结构化结果。")
+    @Tool(description = "Execute a shell command on the local server. For running system commands, viewing files, running scripts. "
+            + "Uses cmd.exe on Windows, /bin/sh on Linux/macOS. "
+            + "Dangerous operations trigger security approval. Returns structured result with exitCode, stdout, stderr, timedOut.")
     public String execute_shell_command(
-            @ToolParam(description = "要执行的 Shell 命令") String command,
-            @ToolParam(description = "超时秒数，默认 60 秒", required = false) Integer timeoutSeconds) {
+            @ToolParam(description = "Shell command to execute") String command,
+            @ToolParam(description = "Timeout in seconds, default 60", required = false) Integer timeoutSeconds) {
 
         int timeout = (timeoutSeconds != null && timeoutSeconds > 0) ? timeoutSeconds : DEFAULT_TIMEOUT_SECONDS;
         // 硬上限：不允许超过 300 秒
@@ -93,7 +96,7 @@ public class ShellExecuteTool {
                 result.set("stdout", readFileTruncated(stdoutFile, MAX_OUTPUT_BYTES));
                 result.set("stderr", readFileTruncated(stderrFile, MAX_OUTPUT_BYTES));
                 result.set("timedOut", true);
-                result.set("message", "命令执行超时（" + timeout + "秒），已强制终止");
+                result.set("message", i18n.msg("tool.shell.error.timeout", timeout));
             } else {
                 int exitCode = process.exitValue();
                 String stdout = readFileTruncated(stdoutFile, MAX_OUTPUT_BYTES);
@@ -110,7 +113,7 @@ public class ShellExecuteTool {
             log.error("[ShellExecute] Command execution failed: {}", e.getMessage(), e);
             result.set("exitCode", -1);
             result.set("stdout", "");
-            result.set("stderr", "执行异常: " + e.getMessage());
+            result.set("stderr", i18n.msg("tool.shell.error.exception", e.getMessage()));
             result.set("timedOut", false);
             result.set("error", e.getMessage());
         } finally {
@@ -213,12 +216,12 @@ public class ShellExecuteTool {
                 byte[] data = is.readNBytes(maxBytes);
                 String content = new String(data, StandardCharsets.UTF_8);
                 if (truncated) {
-                    content += "\n... [输出已截断，超过 " + maxBytes + " 字节限制]";
+                    content += "\n... [output truncated, exceeds " + maxBytes + " byte limit]";
                 }
                 return content;
             }
         } catch (IOException e) {
-            return "[读取输出失败: " + e.getMessage() + "]";
+            return "[read output failed: " + e.getMessage() + "]";
         }
     }
 

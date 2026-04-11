@@ -34,13 +34,12 @@ public class DelegateAgentTool {
     private final AgentMapper agentMapper;
 
     @Tool(description = """
-            委派任务给另一个 Agent 执行，实现多 Agent 协作。
-            当前任务需要特定领域的 Agent 协助时使用此工具。
-            目标 Agent 将在独立会话中执行任务，返回其最终回复。
-            注意：需提供完整的任务上下文，目标 Agent 无法看到当前对话历史。""")
+            Delegate a task to another Agent for multi-agent collaboration. \
+            Target Agent executes in an independent session and returns its final reply. \
+            Provide complete task context.""")
     public String delegateToAgent(
-            @ToolParam(description = "目标 Agent 的名称（精确匹配）") String agentName,
-            @ToolParam(description = "要委派的任务描述，必须包含完整上下文信息") String task) {
+            @ToolParam(description = "Target Agent name (exact match)") String agentName,
+            @ToolParam(description = "Task description with complete context information") String task) {
 
         // 1. 参数校验
         if (agentName == null || agentName.isBlank()) {
@@ -85,7 +84,7 @@ public class DelegateAgentTool {
         }
     }
 
-    @Tool(description = "列出所有可用的 Agent（已启用），包括名称、类型和描述。用于在委派前了解有哪些 Agent 可以协助。")
+    @Tool(description = "List all available Agents (enabled), including name, type, and description.")
     public String listAvailableAgents() {
         List<AgentEntity> agents = agentMapper.selectList(
                 new LambdaQueryWrapper<AgentEntity>()

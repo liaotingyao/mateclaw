@@ -30,7 +30,10 @@ import java.util.Set;
  */
 @Slf4j
 @Component
+@lombok.RequiredArgsConstructor
 public class ReadFileTool {
+
+    private final vip.mate.i18n.I18nService i18n;
 
     private static final int DEFAULT_MAX_LINES = 1000;
     private static final int MAX_OUTPUT_BYTES = 30 * 1024; // 30KB
@@ -44,19 +47,14 @@ public class ReadFileTool {
     );
 
     @Tool(description = """
-            读取指定文件的内容。支持按行范围读取（1-based）。
-            返回包含 filePath、totalLines、readLines、content 的结构化 JSON 结果。
-            如果文件过大，会自动截断并提示继续读取的行号。
-
-            重要限制：
-            - 仅支持文本文件（.txt, .md, .json, .xml, .csv, .log, 源代码等）
-            - 不支持 PDF、Word、Excel、PowerPoint 等 Office 文档
-            - 如需读取 PDF/Word 文档，请使用 extract_document_text 工具
-            """)
+            Read the contents of a file. Supports line-range reading (1-based). \
+            Returns structured JSON with filePath, totalLines, readLines, content. \
+            Auto-truncates large files with continuation hints. \
+            Text files only; use extract_document_text for PDF/Office documents.""")
     public String read_file(
-            @ToolParam(description = "文件的绝对路径或相对路径") String filePath,
-            @ToolParam(description = "起始行号（从 1 开始，包含），不传则从第 1 行开始", required = false) Integer startLine,
-            @ToolParam(description = "结束行号（从 1 开始，包含），不传则读到末尾或达到截断上限", required = false) Integer endLine) {
+            @ToolParam(description = "Absolute or relative file path") String filePath,
+            @ToolParam(description = "Start line number (1-based, inclusive). Omit to start from line 1", required = false) Integer startLine,
+            @ToolParam(description = "End line number (1-based, inclusive). Omit to read to EOF or truncation limit", required = false) Integer endLine) {
 
         JSONObject result = new JSONObject();
         result.set("filePath", filePath);
@@ -71,13 +69,13 @@ public class ReadFileTool {
 
             // 文件存在性和类型校验
             if (!Files.exists(path)) {
-                return errorResult(filePath, "文件不存在: " + path);
+                return errorResult(filePath, i18n.msg("tool.read_file.error.not_found", path));
             }
             if (Files.isDirectory(path)) {
-                return errorResult(filePath, "路径是目录而非文件: " + path);
+                return errorResult(filePath, i18n.msg("tool.read_file.error.is_directory", path));
             }
             if (!Files.isReadable(path)) {
-                return errorResult(filePath, "文件不可读: " + path);
+                return errorResult(filePath, i18n.msg("tool.read_file.error.not_readable", path));
             }
 
             // 检查是否是二进制文档 - 拒绝直接读取
@@ -99,12 +97,12 @@ public class ReadFileTool {
 
             // 范围校验
             if (start > totalLines) {
-                return errorResult(filePath, "起始行 " + start + " 超出文件总行数 " + totalLines);
+                return errorResult(filePath, i18n.msg("tool.read_file.error.start_exceeds", start, totalLines));
             }
             start = Math.max(1, start);
             end = Math.min(end, totalLines);
             if (start > end) {
-                return errorResult(filePath, "起始行 " + start + " 大于结束行 " + end);
+                return errorResult(filePath, i18n.msg("tool.read_file.error.start_gt_end", start, end));
             }
 
             // 提取指定范围的行（转为 0-based）
@@ -147,7 +145,7 @@ public class ReadFileTool {
 
         } catch (Exception e) {
             log.error("[ReadFile] Failed to read file: {}", e.getMessage(), e);
-            return errorResult(filePath, "读取文件异常: " + e.getMessage());
+            return errorResult(filePath, i18n.msg("tool.read_file.error.read_exception", e.getMessage()));
         }
 
         return JSONUtil.toJsonPrettyStr(result);

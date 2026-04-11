@@ -24,18 +24,42 @@ public final class RuntimeContextInjector {
      */
     public static String buildContextMessage() {
         LocalDateTime now = LocalDateTime.now(ZONE);
-        return "[system-context] 当前时间: " + now.format(DATE_FMT)
+        return "[system-context] Current time: " + now.format(DATE_FMT)
                 + " " + now.format(TIME_FMT) + " (Asia/Shanghai)";
     }
 
     /**
      * 构建运行时上下文消息，包含当前日期、时间和工作目录。
+     * 使用 I18nService 解析本地化消息。
      */
     public static String buildContextMessage(String workspaceBasePath) {
-        StringBuilder sb = new StringBuilder(buildContextMessage());
+        return buildContextMessage(workspaceBasePath, null);
+    }
+
+    /**
+     * 构建运行时上下文消息（i18n 版本）。
+     */
+    public static String buildContextMessage(String workspaceBasePath, vip.mate.i18n.I18nService i18n) {
+        LocalDateTime now = LocalDateTime.now(ZONE);
+        String dateStr = now.format(DATE_FMT);
+        String timeStr = now.format(TIME_FMT);
+
+        StringBuilder sb = new StringBuilder();
+        if (i18n != null) {
+            sb.append(i18n.msg("context.current_time", dateStr, timeStr));
+        } else {
+            sb.append("[system-context] Current time: ").append(dateStr)
+              .append(" ").append(timeStr).append(" (Asia/Shanghai)");
+        }
+
         if (workspaceBasePath != null && !workspaceBasePath.isBlank()) {
-            sb.append("\n[system-context] 工作目录: ").append(workspaceBasePath)
-              .append("\n你只能在此目录及其子目录内读写文件和执行命令。");
+            if (i18n != null) {
+                sb.append("\n").append(i18n.msg("context.working_dir", workspaceBasePath));
+                sb.append("\n").append(i18n.msg("context.working_dir_hint"));
+            } else {
+                sb.append("\n[system-context] Working directory: ").append(workspaceBasePath);
+                sb.append("\nYou can only read/write files and execute commands within this directory and its subdirectories.");
+            }
         }
         return sb.toString();
     }

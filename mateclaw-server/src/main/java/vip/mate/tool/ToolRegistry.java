@@ -9,10 +9,15 @@ import org.springframework.stereotype.Component;
 import vip.mate.tool.model.ToolEntity;
 import vip.mate.tool.repository.ToolMapper;
 
+import org.springframework.ai.support.ToolCallbacks;
+import org.springframework.ai.tool.ToolCallback;
 import org.springframework.ai.tool.ToolCallbackProvider;
 import vip.mate.agent.AgentToolSet;
+import vip.mate.i18n.I18nService;
+import vip.mate.i18n.LocaleAwareToolCallback;
 
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -32,6 +37,7 @@ public class ToolRegistry {
 
     private final ApplicationContext applicationContext;
     private final ToolMapper toolMapper;
+    private final I18nService i18nService;
 
     /**
      * 获取所有已启用的工具 Bean（Spring AI @Tool 注解方式）
@@ -86,8 +92,35 @@ public class ToolRegistry {
         List<Object> toolBeans = getEnabledTools();
         Map<String, ToolCallbackProvider> providerBeans = applicationContext.getBeansOfType(ToolCallbackProvider.class);
         List<ToolCallbackProvider> providers = new ArrayList<>(providerBeans.values());
-        log.info("Building AgentToolSet: toolBeans={}, providers={}", toolBeans.size(), providers.size());
-        return AgentToolSet.from(toolBeans, providers);
+
+        // 对内置工具 callback 应用 i18n 描述包装
+        List<ToolCallback> localizedCallbacks = new ArrayList<>();
+        for (Object bean : toolBeans) {
+            ToolCallback[] cbs = ToolCallbacks.from(bean);
+            for (ToolCallback cb : cbs) {
+                String toolName = cb.getToolDefinition().name();
+                String descKey = "tool." + toolName + ".desc";
+                String localizedDesc = i18nService.msg(descKey);
+                // 如果 key 被解析（不等于 key 本身），使用本地化描述
+                if (!localizedDesc.equals(descKey)) {
+                    localizedCallbacks.add(new LocaleAwareToolCallback(cb, localizedDesc));
+                } else {
+                    localizedCallbacks.add(cb);
+                }
+            }
+        }
+
+        // MCP provider callbacks 不做 i18n 包装（MCP 工具自行管理描述）
+        for (ToolCallbackProvider provider : providers) {
+            ToolCallback[] cbs = provider.getToolCallbacks();
+            if (cbs != null) {
+                Collections.addAll(localizedCallbacks, cbs);
+            }
+        }
+
+        log.info("Building AgentToolSet: toolBeans={}, providers={}, totalCallbacks={}",
+                toolBeans.size(), providers.size(), localizedCallbacks.size());
+        return AgentToolSet.fromCallbacks(toolBeans, localizedCallbacks);
     }
 
     /**

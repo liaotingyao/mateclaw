@@ -6,6 +6,9 @@ server:
 spring:
   application:
     name: mateclaw-server
+  messages:
+    basename: messages
+    encoding: UTF-8
   servlet:
     multipart:
       max-file-size: 100MB

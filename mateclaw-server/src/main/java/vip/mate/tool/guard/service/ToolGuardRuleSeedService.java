@@ -15,6 +15,8 @@ import vip.mate.tool.guard.model.ToolGuardRuleEntity;
 import vip.mate.tool.guard.repository.ToolGuardConfigMapper;
 import vip.mate.tool.guard.repository.ToolGuardRuleMapper;
 
+import vip.mate.i18n.I18nService;
+
 import java.util.*;
 import java.util.stream.Collectors;
 
@@ -36,6 +38,7 @@ public class ToolGuardRuleSeedService implements ApplicationRunner {
 
     private final ToolGuardRuleMapper ruleMapper;
     private final ToolGuardConfigMapper configMapper;
+    private final I18nService i18n;
 
     /** 旧类名 → 新 @Tool 方法名 */
     private static final Map<String, String> TOOL_NAME_RENAMES = Map.of(
@@ -209,126 +212,131 @@ public class ToolGuardRuleSeedService implements ApplicationRunner {
         List<ToolGuardRuleEntity> rules = new ArrayList<>();
 
         // === CRITICAL Shell Rules ===
-        rules.add(rule("SHELL_RM_RF_ROOT", "递归强制删除根目录", "rm\\s+-(rf|fr)\\s+/\\s*$",
+        rules.add(rule("SHELL_RM_RF_ROOT", gn("SHELL_RM_RF_ROOT"), "rm\\s+-(rf|fr)\\s+/\\s*$",
                 GuardSeverity.CRITICAL, GuardCategory.COMMAND_INJECTION, "BLOCK",
-                "execute_shell_command", "请指定具体目录路径而非根目录", 200));
+                "execute_shell_command", gf("SHELL_RM_RF_ROOT"), 200));
 
-        rules.add(rule("SHELL_MKFS", "文件系统格式化", "mkfs\\b",
+        rules.add(rule("SHELL_MKFS", gn("SHELL_MKFS"), "mkfs\\b",
                 GuardSeverity.CRITICAL, GuardCategory.COMMAND_INJECTION, "BLOCK",
-                "execute_shell_command", "确认目标设备后手动执行", 200));
+                "execute_shell_command", gf("SHELL_MKFS"), 200));
 
-        rules.add(rule("SHELL_DD_DEV", "直接磁盘写入", "dd\\s+if=.+of=/dev/",
+        rules.add(rule("SHELL_DD_DEV", gn("SHELL_DD_DEV"), "dd\\s+if=.+of=/dev/",
                 GuardSeverity.CRITICAL, GuardCategory.COMMAND_INJECTION, "BLOCK",
-                "execute_shell_command", "确认目标设备后手动执行", 200));
+                "execute_shell_command", gf("SHELL_DD_DEV"), 200));
 
-        rules.add(rule("SHELL_KILL_INIT", "杀死 init/systemd", "\\bkill\\s+-9\\s+1\\b",
+        rules.add(rule("SHELL_KILL_INIT", gn("SHELL_KILL_INIT"), "\\bkill\\s+-9\\s+1\\b",
                 GuardSeverity.CRITICAL, GuardCategory.RESOURCE_ABUSE, "BLOCK",
-                "execute_shell_command", "使用 systemctl 管理服务", 200));
+                "execute_shell_command", gf("SHELL_KILL_INIT"), 200));
 
-        rules.add(rule("SHELL_CURL_PIPE_SH", "管道下载执行 (curl)", "curl.*\\|\\s*(sh|bash|zsh)",
+        rules.add(rule("SHELL_CURL_PIPE_SH", gn("SHELL_CURL_PIPE_SH"), "curl.*\\|\\s*(sh|bash|zsh)",
                 GuardSeverity.CRITICAL, GuardCategory.CODE_EXECUTION, "BLOCK",
-                "execute_shell_command", "先下载文件审查内容再执行", 200));
+                "execute_shell_command", gf("SHELL_CURL_PIPE_SH"), 200));
 
-        rules.add(rule("SHELL_WGET_PIPE_SH", "管道下载执行 (wget)", "wget.*\\|\\s*(sh|bash|zsh)",
+        rules.add(rule("SHELL_WGET_PIPE_SH", gn("SHELL_WGET_PIPE_SH"), "wget.*\\|\\s*(sh|bash|zsh)",
                 GuardSeverity.CRITICAL, GuardCategory.CODE_EXECUTION, "BLOCK",
-                "execute_shell_command", "先下载文件审查内容再执行", 200));
+                "execute_shell_command", gf("SHELL_WGET_PIPE_SH"), 200));
 
-        rules.add(rule("SHELL_FORK_BOMB", "Fork Bomb", ":\\(\\)\\s*\\{\\s*:\\|:\\s*&\\s*\\}\\s*;\\s*:",
+        rules.add(rule("SHELL_FORK_BOMB", gn("SHELL_FORK_BOMB"), ":\\(\\)\\s*\\{\\s*:\\|:\\s*&\\s*\\}\\s*;\\s*:",
                 GuardSeverity.CRITICAL, GuardCategory.RESOURCE_ABUSE, "BLOCK",
-                "execute_shell_command", "此命令无正当用途", 200));
+                "execute_shell_command", gf("SHELL_FORK_BOMB"), 200));
 
-        rules.add(rule("SHELL_REVERSE_SHELL", "反向 Shell", "(/dev/tcp|\\bnc\\s+-e\\b|\\bncat\\s+-e\\b|\\bsocat\\s+EXEC:)",
+        rules.add(rule("SHELL_REVERSE_SHELL", gn("SHELL_REVERSE_SHELL"), "(/dev/tcp|\\bnc\\s+-e\\b|\\bncat\\s+-e\\b|\\bsocat\\s+EXEC:)",
                 GuardSeverity.CRITICAL, GuardCategory.NETWORK_ABUSE, "BLOCK",
-                "execute_shell_command", "此命令可能被用于远程控制", 200));
+                "execute_shell_command", gf("SHELL_REVERSE_SHELL"), 200));
 
         // === HIGH Shell Rules ===
-        rules.add(rule("SHELL_RM", "rm 删除命令", "(^|[;&|]|\\s)rm\\s",
+        rules.add(rule("SHELL_RM", gn("SHELL_RM"), "(^|[;&|]|\\s)rm\\s",
                 GuardSeverity.HIGH, GuardCategory.COMMAND_INJECTION, "NEEDS_APPROVAL",
-                "execute_shell_command", "请确认要删除的文件列表，考虑使用 trash 替代 rm", 150));
+                "execute_shell_command", gf("SHELL_RM"), 150));
 
-        rules.add(rule("SHELL_RM_RF", "递归强制删除", "rm\\s+-(rf|fr)",
+        rules.add(rule("SHELL_RM_RF", gn("SHELL_RM_RF"), "rm\\s+-(rf|fr)",
                 GuardSeverity.HIGH, GuardCategory.COMMAND_INJECTION, "NEEDS_APPROVAL",
-                "execute_shell_command", "使用 rm -ri 或指定具体文件", 150));
+                "execute_shell_command", gf("SHELL_RM_RF"), 150));
 
-        rules.add(rule("SHELL_RM_ROOT", "从根路径删除", "rm\\s+/",
+        rules.add(rule("SHELL_RM_ROOT", gn("SHELL_RM_ROOT"), "rm\\s+/",
                 GuardSeverity.HIGH, GuardCategory.COMMAND_INJECTION, "NEEDS_APPROVAL",
-                "execute_shell_command", "请指定具体路径", 150));
+                "execute_shell_command", gf("SHELL_RM_ROOT"), 150));
 
-        rules.add(rule("SHELL_RMDIR_ROOT", "从根路径删除目录", "rmdir\\s+/",
+        rules.add(rule("SHELL_RMDIR_ROOT", gn("SHELL_RMDIR_ROOT"), "rmdir\\s+/",
                 GuardSeverity.HIGH, GuardCategory.COMMAND_INJECTION, "NEEDS_APPROVAL",
-                "execute_shell_command", "请指定具体路径", 150));
+                "execute_shell_command", gf("SHELL_RMDIR_ROOT"), 150));
 
-        rules.add(rule("SHELL_SQL_DROP", "SQL DROP 操作", "DROP\\s+(TABLE|DATABASE|INDEX|VIEW|SCHEMA)",
+        rules.add(rule("SHELL_SQL_DROP", gn("SHELL_SQL_DROP"), "DROP\\s+(TABLE|DATABASE|INDEX|VIEW|SCHEMA)",
                 GuardSeverity.HIGH, GuardCategory.COMMAND_INJECTION, "NEEDS_APPROVAL",
-                null, "请先备份数据再执行", 150));
+                null, gf("SHELL_SQL_DROP"), 150));
 
-        rules.add(rule("SHELL_SQL_TRUNCATE", "SQL TRUNCATE 操作", "TRUNCATE\\s+TABLE",
+        rules.add(rule("SHELL_SQL_TRUNCATE", gn("SHELL_SQL_TRUNCATE"), "TRUNCATE\\s+TABLE",
                 GuardSeverity.HIGH, GuardCategory.COMMAND_INJECTION, "NEEDS_APPROVAL",
-                null, "请先备份数据再执行", 150));
+                null, gf("SHELL_SQL_TRUNCATE"), 150));
 
-        rules.add(rule("SHELL_SQL_DELETE_ALL", "SQL 无条件 DELETE", "DELETE\\s+FROM\\s+\\w+\\s*;",
+        rules.add(rule("SHELL_SQL_DELETE_ALL", gn("SHELL_SQL_DELETE_ALL"), "DELETE\\s+FROM\\s+\\w+\\s*;",
                 GuardSeverity.HIGH, GuardCategory.COMMAND_INJECTION, "NEEDS_APPROVAL",
-                null, "请添加 WHERE 条件", 150));
+                null, gf("SHELL_SQL_DELETE_ALL"), 150));
 
-        rules.add(rule("SHELL_SQL_ALTER_DROP", "SQL ALTER TABLE DROP", "ALTER\\s+TABLE\\s+\\w+\\s+DROP",
+        rules.add(rule("SHELL_SQL_ALTER_DROP", gn("SHELL_SQL_ALTER_DROP"), "ALTER\\s+TABLE\\s+\\w+\\s+DROP",
                 GuardSeverity.HIGH, GuardCategory.COMMAND_INJECTION, "NEEDS_APPROVAL",
-                null, "请先备份数据再执行", 150));
+                null, gf("SHELL_SQL_ALTER_DROP"), 150));
 
-        rules.add(rule("SHELL_SHUTDOWN", "系统关机", "\\bshutdown\\b",
+        rules.add(rule("SHELL_SHUTDOWN", gn("SHELL_SHUTDOWN"), "\\bshutdown\\b",
                 GuardSeverity.HIGH, GuardCategory.RESOURCE_ABUSE, "NEEDS_APPROVAL",
-                "execute_shell_command", "请确认是否需要关机", 150));
+                "execute_shell_command", gf("SHELL_SHUTDOWN"), 150));
 
-        rules.add(rule("SHELL_REBOOT", "系统重启", "\\breboot\\b",
+        rules.add(rule("SHELL_REBOOT", gn("SHELL_REBOOT"), "\\breboot\\b",
                 GuardSeverity.HIGH, GuardCategory.RESOURCE_ABUSE, "NEEDS_APPROVAL",
-                "execute_shell_command", "请确认是否需要重启", 150));
+                "execute_shell_command", gf("SHELL_REBOOT"), 150));
 
-        rules.add(rule("SHELL_CHMOD_777", "过度宽松权限", "chmod\\s+777",
+        rules.add(rule("SHELL_CHMOD_777", gn("SHELL_CHMOD_777"), "chmod\\s+777",
                 GuardSeverity.HIGH, GuardCategory.PRIVILEGE_ESCALATION, "NEEDS_APPROVAL",
-                "execute_shell_command", "使用最小必要权限", 150));
+                "execute_shell_command", gf("SHELL_CHMOD_777"), 150));
 
-        rules.add(rule("SHELL_EVAL", "动态代码执行", "eval\\s*\\(",
+        rules.add(rule("SHELL_EVAL", gn("SHELL_EVAL"), "eval\\s*\\(",
                 GuardSeverity.HIGH, GuardCategory.CODE_EXECUTION, "NEEDS_APPROVAL",
-                null, "避免使用 eval", 150));
+                null, gf("SHELL_EVAL"), 150));
 
-        rules.add(rule("SHELL_GIT_FORCE_PUSH", "Git 强制推送", "git\\s+push\\s+.*--force",
+        rules.add(rule("SHELL_GIT_FORCE_PUSH", gn("SHELL_GIT_FORCE_PUSH"), "git\\s+push\\s+.*--force",
                 GuardSeverity.HIGH, GuardCategory.COMMAND_INJECTION, "NEEDS_APPROVAL",
-                "execute_shell_command", "使用 --force-with-lease", 150));
+                "execute_shell_command", gf("SHELL_GIT_FORCE_PUSH"), 150));
 
-        rules.add(rule("SHELL_GIT_RESET_HARD", "Git 硬重置", "git\\s+reset\\s+--hard",
+        rules.add(rule("SHELL_GIT_RESET_HARD", gn("SHELL_GIT_RESET_HARD"), "git\\s+reset\\s+--hard",
                 GuardSeverity.HIGH, GuardCategory.COMMAND_INJECTION, "NEEDS_APPROVAL",
-                "execute_shell_command", "先用 git stash", 150));
+                "execute_shell_command", gf("SHELL_GIT_RESET_HARD"), 150));
 
-        rules.add(rule("SHELL_CRONTAB", "定时任务修改", "\\bcrontab\\b",
+        rules.add(rule("SHELL_CRONTAB", gn("SHELL_CRONTAB"), "\\bcrontab\\b",
                 GuardSeverity.HIGH, GuardCategory.PRIVILEGE_ESCALATION, "NEEDS_APPROVAL",
-                "execute_shell_command", "请确认定时任务内容", 150));
+                "execute_shell_command", gf("SHELL_CRONTAB"), 150));
 
-        rules.add(rule("SHELL_AUTHORIZED_KEYS", "SSH 密钥修改", "authorized_keys",
+        rules.add(rule("SHELL_AUTHORIZED_KEYS", gn("SHELL_AUTHORIZED_KEYS"), "authorized_keys",
                 GuardSeverity.HIGH, GuardCategory.PRIVILEGE_ESCALATION, "NEEDS_APPROVAL",
-                null, "请确认 SSH 密钥变更", 150));
+                null, gf("SHELL_AUTHORIZED_KEYS"), 150));
 
-        rules.add(rule("SHELL_SUDOERS", "sudo 权限修改", "/etc/sudoers",
+        rules.add(rule("SHELL_SUDOERS", gn("SHELL_SUDOERS"), "/etc/sudoers",
                 GuardSeverity.HIGH, GuardCategory.PRIVILEGE_ESCALATION, "NEEDS_APPROVAL",
-                null, "请使用 visudo", 150));
+                null, gf("SHELL_SUDOERS"), 150));
 
-        rules.add(rule("SHELL_OBFUSCATED_EXEC", "混淆代码执行", "base64\\s+-d.*\\|\\s*(bash|sh)",
+        rules.add(rule("SHELL_OBFUSCATED_EXEC", gn("SHELL_OBFUSCATED_EXEC"), "base64\\s+-d.*\\|\\s*(bash|sh)",
                 GuardSeverity.HIGH, GuardCategory.CODE_EXECUTION, "NEEDS_APPROVAL",
-                "execute_shell_command", "先解码查看内容再执行", 150));
+                "execute_shell_command", gf("SHELL_OBFUSCATED_EXEC"), 150));
 
         // === Credential Rules ===
-        rules.add(rule("CRED_PASSWORD_ASSIGN", "凭据信息暴露", "(password|secret|api[_-]?key|token)\\s*=\\s*['\"]?\\S{8,}",
+        rules.add(rule("CRED_PASSWORD_ASSIGN", gn("CRED_PASSWORD_ASSIGN"), "(password|secret|api[_-]?key|token)\\s*=\\s*['\"]?\\S{8,}",
                 GuardSeverity.HIGH, GuardCategory.CREDENTIAL_EXPOSURE, "NEEDS_APPROVAL",
-                null, "使用环境变量或密钥管理服务", 140));
+                null, gf("CRED_PASSWORD_ASSIGN"), 140));
 
-        rules.add(rule("CRED_AWS_KEY", "AWS Access Key 泄露", "AKIA[0-9A-Z]{16}",
+        rules.add(rule("CRED_AWS_KEY", gn("CRED_AWS_KEY"), "AKIA[0-9A-Z]{16}",
                 GuardSeverity.HIGH, GuardCategory.CREDENTIAL_EXPOSURE, "NEEDS_APPROVAL",
-                null, "使用 IAM Role 或 AWS Secrets Manager", 140));
+                null, gf("CRED_AWS_KEY"), 140));
 
-        rules.add(rule("CRED_PRIVATE_KEY", "私钥泄露", "-----BEGIN\\s+(RSA\\s+)?PRIVATE\\s+KEY-----",
+        rules.add(rule("CRED_PRIVATE_KEY", gn("CRED_PRIVATE_KEY"), "-----BEGIN\\s+(RSA\\s+)?PRIVATE\\s+KEY-----",
                 GuardSeverity.HIGH, GuardCategory.CREDENTIAL_EXPOSURE, "BLOCK",
-                null, "请勿在参数中传递私钥", 140));
+                null, gf("CRED_PRIVATE_KEY"), 140));
 
         return rules;
     }
+
+    /** Guard rule name shorthand */
+    private String gn(String ruleId) { return i18n.msg("guard." + ruleId + ".name"); }
+    /** Guard rule fix/remediation shorthand */
+    private String gf(String ruleId) { return i18n.msg("guard." + ruleId + ".fix"); }
 
     private ToolGuardRuleEntity rule(String ruleId, String name, String pattern,
                                      GuardSeverity severity, GuardCategory category,

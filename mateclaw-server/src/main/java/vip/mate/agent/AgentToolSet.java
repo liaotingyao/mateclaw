@@ -37,6 +37,13 @@ public class AgentToolSet {
     }
 
     /**
+     * 从预构建的 ToolCallback 列表构建工具集（用于 i18n 等需要包装 callback 的场景）
+     */
+    public static AgentToolSet fromCallbacks(List<Object> toolBeans, List<ToolCallback> callbacks) {
+        return new AgentToolSet(toolBeans != null ? toolBeans : List.of(), callbacks);
+    }
+
+    /**
      * 从 @Tool Bean 列表和 ToolCallbackProvider 列表构建统一工具集
      */
     public static AgentToolSet from(List<Object> toolBeans, List<ToolCallbackProvider> providers) {

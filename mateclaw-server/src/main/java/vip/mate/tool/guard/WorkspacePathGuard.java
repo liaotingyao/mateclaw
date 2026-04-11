@@ -45,7 +45,7 @@ public final class WorkspacePathGuard {
         // 先用 normalize 检查，再尝试 toRealPath 防符号链接逃逸
         if (!normalized.startsWith(root)) {
             throw new IllegalArgumentException(
-                    "路径不在工作区允许范围内: " + normalized + "，允许的根目录: " + root);
+                    "Path is outside workspace boundary: " + normalized + ", allowed root: " + root);
         }
 
         // 对已存在的路径，解析符号链接后再次校验
@@ -55,7 +55,7 @@ public final class WorkspacePathGuard {
                 Path realRoot = root.toFile().exists() ? root.toRealPath() : root;
                 if (!realPath.startsWith(realRoot)) {
                     throw new IllegalArgumentException(
-                            "路径通过符号链接逃逸出工作区: " + realPath + "，允许的根目录: " + realRoot);
+                            "Path escapes workspace via symlink: " + realPath + ", allowed root: " + realRoot);
                 }
                 return realPath;
             }

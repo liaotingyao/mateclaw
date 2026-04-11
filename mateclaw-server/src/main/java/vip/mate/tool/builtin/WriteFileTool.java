@@ -28,21 +28,24 @@ import java.nio.file.Paths;
  */
 @Slf4j
 @Component
+@lombok.RequiredArgsConstructor
 public class WriteFileTool {
 
-    @Tool(description = "将内容写入指定文件。如果文件已存在则完全覆写，不存在则创建新文件（自动创建父目录）。"
-            + "返回包含 filePath、bytesWritten 的结构化 JSON 结果。"
-            + "注意：此操作会覆盖已有文件内容，需要用户审批确认。")
+    private final vip.mate.i18n.I18nService i18n;
+
+    @Tool(description = "Write content to a file. Overwrites if exists, creates if not (auto-creates parent directories). "
+            + "Returns structured JSON with filePath, bytesWritten. "
+            + "Requires user approval.")
     public String write_file(
-            @ToolParam(description = "文件的绝对路径或相对路径") String filePath,
-            @ToolParam(description = "要写入的文件内容") String content) {
+            @ToolParam(description = "Absolute or relative file path") String filePath,
+            @ToolParam(description = "Content to write to the file") String content) {
 
         JSONObject result = new JSONObject();
         result.set("filePath", filePath);
 
         try {
             if (filePath == null || filePath.isBlank()) {
-                return errorResult(filePath, "文件路径不能为空");
+                return errorResult(filePath, i18n.msg("tool.write_file.error.path_empty"));
             }
             if (content == null) {
                 content = "";
@@ -57,7 +60,7 @@ public class WriteFileTool {
 
             // 如果路径是已有目录，拒绝
             if (Files.isDirectory(path)) {
-                return errorResult(filePath, "路径是一个已有目录，无法作为文件写入: " + path);
+                return errorResult(filePath, i18n.msg("tool.write_file.error.is_directory", path));
             }
 
             // 自动创建父目录
@@ -77,15 +80,15 @@ public class WriteFileTool {
             result.set("created", !existed);
             result.set("overwritten", existed);
             result.set("message", existed
-                    ? "文件已覆写: " + path + " (" + bytes.length + " 字节)"
-                    : "文件已创建: " + path + " (" + bytes.length + " 字节)");
+                    ? "Overwritten: " + path + " (" + bytes.length + " bytes)"
+                    : "Created: " + path + " (" + bytes.length + " bytes)");
 
             log.info("[WriteFile] {} file: {} ({} bytes)",
                     existed ? "Overwritten" : "Created", path, bytes.length);
 
         } catch (Exception e) {
             log.error("[WriteFile] Failed to write file: {}", e.getMessage(), e);
-            return errorResult(filePath, "写入文件异常: " + e.getMessage());
+            return errorResult(filePath, i18n.msg("tool.write_file.error.write_exception", e.getMessage()));
         }
 
         return JSONUtil.toJsonPrettyStr(result);

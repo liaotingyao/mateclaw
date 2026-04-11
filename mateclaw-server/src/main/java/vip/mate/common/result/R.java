@@ -23,12 +23,21 @@ public class R<T> implements Serializable {
     /** 数据 */
     private T data;
 
+    /** i18n holder — set once at startup by I18nAutoConfig, used by ok()/fail() */
+    private static volatile vip.mate.i18n.I18nService i18n;
+
+    public static void setI18n(vip.mate.i18n.I18nService service) { i18n = service; }
+
+    private static String resolveMsg(ResultCode rc) {
+        return i18n != null ? rc.getMsg(i18n) : rc.getMsg();
+    }
+
     public static <T> R<T> ok() {
-        return result(ResultCode.SUCCESS.getCode(), ResultCode.SUCCESS.getMsg(), null);
+        return result(ResultCode.SUCCESS.getCode(), resolveMsg(ResultCode.SUCCESS), null);
     }
 
     public static <T> R<T> ok(T data) {
-        return result(ResultCode.SUCCESS.getCode(), ResultCode.SUCCESS.getMsg(), data);
+        return result(ResultCode.SUCCESS.getCode(), resolveMsg(ResultCode.SUCCESS), data);
     }
 
     public static <T> R<T> ok(String msg, T data) {
@@ -36,7 +45,7 @@ public class R<T> implements Serializable {
     }
 
     public static <T> R<T> fail() {
-        return result(ResultCode.SYSTEM_ERROR.getCode(), ResultCode.SYSTEM_ERROR.getMsg(), null);
+        return result(ResultCode.SYSTEM_ERROR.getCode(), resolveMsg(ResultCode.SYSTEM_ERROR), null);
     }
 
     public static <T> R<T> fail(String msg) {
