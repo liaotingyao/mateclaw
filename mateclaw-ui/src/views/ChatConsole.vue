@@ -239,6 +239,7 @@
 
         <!-- Talk Mode 覆盖层 -->
         <TalkMode
+          v-if="showTalkMode"
           :visible="showTalkMode"
           :agent-id="selectedAgentId"
           :conversation-id="currentConversationId"
@@ -1389,6 +1390,14 @@ function handleCodeCopy(e: MouseEvent) {
   padding: 8px;
 }
 
+.conversation-panel.conv-collapsed .agent-dropdown {
+  position: fixed;
+  top: auto;
+  left: 62px;
+  right: auto;
+  min-width: 260px;
+}
+
 .conversation-panel.conv-collapsed .conv-item {
   justify-content: center;
   padding: 10px 6px;
@@ -1531,6 +1540,7 @@ function handleCodeCopy(e: MouseEvent) {
   top: calc(100% + 4px);
   left: 12px;
   right: 12px;
+  min-width: 240px;
   z-index: 100;
   background: var(--mc-bg-elevated);
   border: 1px solid var(--mc-border);

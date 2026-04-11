@@ -70,7 +70,9 @@ public class TalkModeWebSocketHandler extends AbstractWebSocketHandler {
             String type = (String) data.get("type");
 
             if ("init".equals(type)) {
-                Long agentId = data.get("agentId") != null ? Long.valueOf(data.get("agentId").toString()) : null;
+                Object rawAgentId = data.get("agentId");
+                Long agentId = (rawAgentId != null && !rawAgentId.toString().isBlank())
+                        ? Long.valueOf(rawAgentId.toString()) : null;
                 String conversationId = (String) data.getOrDefault("conversationId", "talk-" + session.getId());
                 String username = (String) data.getOrDefault("username", "anonymous");
 

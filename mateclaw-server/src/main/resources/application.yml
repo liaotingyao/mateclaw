@@ -37,7 +37,6 @@ spring:
       - classpath:db/migration/h2
     validate-on-migrate: true
     clean-disabled: true
-    repair-on-migrate: true
 
   h2:
     console:

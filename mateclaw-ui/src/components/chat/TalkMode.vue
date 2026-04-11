@@ -90,7 +90,9 @@ const stateLabel = computed(() => {
 })
 
 onMounted(() => {
-  connectWebSocket()
+  if (props.agentId) {
+    connectWebSocket()
+  }
 })
 
 onBeforeUnmount(() => {
