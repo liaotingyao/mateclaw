@@ -608,6 +608,18 @@ const segments = computed<MessageSegment[]>(() => {
       }
     }
 
+    // 去重：相同 toolName + toolArgs 的 tool_call segment 只保留第一个
+    const seenToolCalls = new Set<string>()
+    const deduped = segs.filter(seg => {
+      if (seg.type !== 'tool_call') return true
+      const key = `${seg.toolName}::${seg.toolArgs || ''}`
+      if (seenToolCalls.has(key)) return false
+      seenToolCalls.add(key)
+      return true
+    })
+    segs.length = 0
+    segs.push(...deduped)
+
     // 修复历史消息顺序：如果 thinking 被落在 content 后面，提到首个 content 前
     // 只处理单个 thinking 段的常见场景，避免破坏复杂交错时间线
     const thinkingIndices = segs

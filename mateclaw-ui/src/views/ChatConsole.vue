@@ -563,6 +563,7 @@ const {
   stopGeneration: stopChatGeneration,
   cancelQueued,
   reconnectStream: reconnectChatStream,
+  resetForNewConversation,
 } = useChat({
   baseUrl: '',
   onStreamEnd: async (meta) => {
@@ -770,18 +771,19 @@ async function loadConversations() {
 
 async function refreshCurrentConversationMessages(conversationId: string) {
   if (!conversationId) return
-  // 如果已经在生成新消息（用户在 stop 后又快速发了新消息），不覆盖本地状态
   if (isGenerating.value) return
-  // 审批挂起时本地状态比 DB 更丰富（含 thinking + text），不替换
   if (streamPhase.value === 'awaiting_approval') return
   try {
     const res: any = await conversationApi.listMessages(conversationId)
+    // Stale guard：await 返回后确认仍是当前会话
+    if (currentConversationId.value !== conversationId) return
+    // 二次 isGenerating 检查：如果 await 期间用户已发新消息，不覆盖本地状态
+    if (isGenerating.value) return
     const fetched = extractMessages(res).messages.map((msg: Message) => normalizeMessage(msg))
-    // 过滤掉不属于当前对话的本地消息，防止跨对话污染
+    // 严格过滤：只保留 conversationId 完全匹配的本地消息，orphan（空 conversationId）直接丢弃
     const currentMessages = messages.value.filter(
-      (m: any) => !m.conversationId || m.conversationId === conversationId
+      (m: any) => m.conversationId === conversationId
     )
-    // 逐条 reconcile：只接受更丰富的版本，防止 poorer DB 快照覆盖 local rich message
     messages.value = reconcileMessages(currentMessages, fetched)
   } catch (e) {
     console.warn('[ChatConsole] Failed to refresh current conversation messages:', e)
@@ -806,13 +808,15 @@ async function hydrateStateFromRoute() {
       messages.value = []
       try {
         const res: any = await conversationApi.listMessages(conversationId)
+        if (currentConversationId.value !== conversationId) return
         messages.value = extractMessages(res).messages.map((msg: Message) => normalizeMessage(msg))
       } catch {
         // 消息加载失败，保持空
       }
       try {
+        if (currentConversationId.value !== conversationId) return
         const statusRes: any = await conversationApi.getStatus(conversationId)
-        if (statusRes.data?.streamStatus === 'running') {
+        if (currentConversationId.value === conversationId && statusRes.data?.streamStatus === 'running') {
           await reconnectStream(conversationId)
         }
       } catch {
@@ -839,16 +843,19 @@ async function selectConversation(conv: Conversation) {
   resetStreamingState()
   currentConversationId.value = conv.conversationId
   selectedAgentId.value = conv.agentId || selectedAgentId.value
+  const requestedConvId = conv.conversationId
   try {
-    const res: any = await conversationApi.listMessages(conv.conversationId)
+    const res: any = await conversationApi.listMessages(requestedConvId)
+    // Stale guard：await 返回后确认仍是当前会话，否则丢弃
+    if (currentConversationId.value !== requestedConvId) return
     messages.value = extractMessages(res).messages.map((msg: Message) => normalizeMessage(msg))
 
     // Hydrate pending approvals：恢复刷新后丢失的审批卡片
     try {
-      const approvalRes: any = await chatApi.getPendingApprovals(conv.conversationId)
+      const approvalRes: any = await chatApi.getPendingApprovals(requestedConvId)
+      if (currentConversationId.value !== requestedConvId) return
       const pendingApprovals = approvalRes.data || []
       if (pendingApprovals.length > 0) {
-        // 将 pending approvals 绑定到最近的 assistant 消息
         const assistantMessages = messages.value.filter(m => m.role === 'assistant')
         const lastAssistant = assistantMessages[assistantMessages.length - 1]
         if (lastAssistant) {
@@ -862,7 +869,6 @@ async function selectConversation(conv: Conversation) {
                 arguments: pa.toolArguments,
                 reason: pa.reason,
                 status: 'pending_approval',
-                // 增强字段（Phase 6: 结构化风险信息）
                 findings: pa.findingsJson ? JSON.parse(pa.findingsJson) : undefined,
                 maxSeverity: pa.maxSeverity || undefined,
                 summary: pa.summary || undefined,
@@ -875,8 +881,8 @@ async function selectConversation(conv: Conversation) {
       // hydration 失败不影响正常使用
     }
 
-    if (conv.streamStatus === 'running') {
-      await reconnectStream(conv.conversationId)
+    if (currentConversationId.value === requestedConvId && conv.streamStatus === 'running') {
+      await reconnectStream(requestedConvId)
     }
   } catch (e) {
     ElMessage.error(t('chat.loadMessagesFailed'))
@@ -1126,7 +1132,9 @@ function handleCancelQueued() {
 
 // 简化版重置函数
 function resetStreamingState() {
+  // 先通知后端停止旧流（fire-and-forget），再彻底清理前端状态
   stopChatGeneration()
+  resetForNewConversation()
 }
 
 // ============ 附件处理 ============

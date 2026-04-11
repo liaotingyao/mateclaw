@@ -73,6 +73,8 @@ export interface UseChatReturn {
   clearMessages: () => void
   /** 重连到运行中的流 */
   reconnectStream: (conversationId: string) => Promise<void>
+  /** 彻底重置流上下文 — 切换/新建会话时调用 */
+  resetForNewConversation: () => void
 }
 
 export interface SendMessageOptions {
@@ -115,11 +117,23 @@ export function useChat(options: UseChatOptions): UseChatReturn {
   const segIdCounter = { value: 0 }
   const genSegId = () => `seg-${Date.now()}-${segIdCounter.value++}`
 
+  /** 当前 turn 的唯一标识 — 确保 flushSegmentsToMessage 不会把旧 turn 的 segments 写到新消息 */
+  let activeTurnId = ''
+
+  /** 重置当前 turn 的流式状态 — 必须在每次创建新 assistant placeholder 之前调用 */
+  function resetCurrentTurnState() {
+    currentSegments.value = []
+    segIdCounter.value = 0
+    activeTurnId = `turn-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`
+  }
+
   /** 将当前 segments 同步到助手消息的 metadata 中（实时渲染用） */
   const flushSegmentsToMessage = () => {
     if (!currentAssistantId.value || currentSegments.value.length === 0) return
     const msg = getMessage(currentAssistantId.value)
     if (!msg) return
+    // 保护：只写入当前 turn 创建的消息，避免旧 turn segments 污染新消息
+    if ((msg as any)._turnId && (msg as any)._turnId !== activeTurnId) return
     const metadata = parseMetadata((msg as any).metadata)
     updateMessage(currentAssistantId.value, {
       ...msg,
@@ -257,14 +271,10 @@ export function useChat(options: UseChatOptions): UseChatReturn {
       return
     }
 
-    // 重置分段列表
-    currentSegments.value = []
-    segIdCounter.value = 0
-
-    const assistantMessage = createAssistantMessage('')
-    if (streamConversationId) {
-      assistantMessage.conversationId = streamConversationId
-    }
+    // 没有 placeholder 时才创建（正常路径 placeholder 已在 sendMessage 中创建）
+    resetCurrentTurnState()
+    const assistantMessage = createAssistantMessage('', streamConversationId)
+    ;(assistantMessage as any)._turnId = activeTurnId
     currentAssistantId.value = assistantMessage.id as string
   })
 
@@ -627,7 +637,9 @@ export function useChat(options: UseChatOptions): UseChatReturn {
       }
     }
     if (!targetId) {
-      const placeholder = createAssistantMessage('')
+      resetCurrentTurnState()
+      const placeholder = createAssistantMessage('', streamConversationId)
+      ;(placeholder as any)._turnId = activeTurnId
       targetId = placeholder.id as string
       currentAssistantId.value = targetId
     }
@@ -766,12 +778,14 @@ export function useChat(options: UseChatOptions): UseChatReturn {
     const queued = messageQueue.dequeue()
     const messageContent = data.message || queued?.content || ''
     if (messageContent) {
-      const userMessage = createUserMessage(messageContent, queued?.contentParts)
-      userMessage.conversationId = data.conversationId || streamConversationId
+      const convId = data.conversationId || streamConversationId
+      createUserMessage(messageContent, queued?.contentParts, convId)
     }
     // 2. 再创建 assistant 占位消息
-    const assistantMessage = createAssistantMessage('')
-    assistantMessage.conversationId = data.conversationId || streamConversationId
+    resetCurrentTurnState()
+    const convId2 = data.conversationId || streamConversationId
+    const assistantMessage = createAssistantMessage('', convId2)
+    ;(assistantMessage as any)._turnId = activeTurnId
     currentAssistantId.value = assistantMessage.id as string
     streamPhase.value = 'thinking'
     phaseInfo.value = null
@@ -893,12 +907,12 @@ export function useChat(options: UseChatOptions): UseChatReturn {
 
     try {
       if (!isApprovalCommand) {
-        const userMessage = createUserMessage(content, contentParts)
-        userMessage.conversationId = conversationId
+        createUserMessage(content, contentParts, conversationId)
       }
 
-      const assistantMessage = createAssistantMessage('')
-      assistantMessage.conversationId = conversationId
+      resetCurrentTurnState()
+      const assistantMessage = createAssistantMessage('', conversationId)
+      ;(assistantMessage as any)._turnId = activeTurnId
       currentAssistantId.value = assistantMessage.id as string
 
       // contentParts 已由 buildOutgoingParts 包含 file entries，不要重复合并 attachments
@@ -949,10 +963,10 @@ export function useChat(options: UseChatOptions): UseChatReturn {
       } else {
         // 没有活跃的流，直接发送
         messageQueue.clear()
-        const userMessage = createUserMessage(content, options.contentParts)
-        userMessage.conversationId = conversationId
-        const assistantMessage = createAssistantMessage('')
-        assistantMessage.conversationId = conversationId
+        createUserMessage(content, options.contentParts, conversationId)
+        resetCurrentTurnState()
+        const assistantMessage = createAssistantMessage('', conversationId)
+        ;(assistantMessage as any)._turnId = activeTurnId
         currentAssistantId.value = assistantMessage.id as string
         streamPhase.value = 'thinking'
         phaseInfo.value = null
@@ -969,8 +983,7 @@ export function useChat(options: UseChatOptions): UseChatReturn {
       // 回退为本地可见消息 + 清队列，避免消息静默丢失。
       const failedQueued = messageQueue.dequeue()
       if (failedQueued) {
-        const userMessage = createUserMessage(failedQueued.content, failedQueued.contentParts)
-        userMessage.conversationId = conversationId
+        createUserMessage(failedQueued.content, failedQueued.contentParts, conversationId)
       }
       error.value = new Error('Failed to queue message, please resend')
     }
@@ -983,6 +996,10 @@ export function useChat(options: UseChatOptions): UseChatReturn {
   // 这样 done 事件能正常到达，onStreamEnd 被触发，消息状态和会话列表都能正确更新。
   // 加一个 fallback timeout（3 秒），防止 done 事件因网络问题永远不到达。
   const stopGeneration = async () => {
+    // 在任何 await 之前冻结标识符 + 安装 fallback timer，防止 resetForNewConversation 并发清空后丢失上下文
+    const convId = streamConversationId
+    const assistantId = currentAssistantId.value
+
     // 先取消排队消息
     messageQueue.clear()
 
@@ -990,30 +1007,19 @@ export function useChat(options: UseChatOptions): UseChatReturn {
     streamPhase.value = 'stopped'
     phaseInfo.value = null
 
-    if (streamConversationId) {
-      try {
-        await fetchWithAuth(`${baseUrl}/api/v1/chat/${streamConversationId}/stop`, {
-          method: 'POST',
-        })
-      } catch (e) {
-        console.warn('[useChat] Stop API failed:', e)
-      }
-    }
-
-    // 不立即 disconnect —— 等 done 事件自然到达（后端 doOnCancel 会广播 done）
-    // 设置 fallback timeout：如果 3 秒内 done 事件没到达，强制清理
-    const convId = streamConversationId
-    const assistantId = currentAssistantId.value
+    // 在 await 之前安装 fallback timer，确保即使 resetForNewConversation 并发执行也不会遗漏
     if (stopFallbackTimer) clearTimeout(stopFallbackTimer)
     stopFallbackTimer = setTimeout(() => {
       stopFallbackTimer = null
       console.warn('[useChat] Stop fallback: done event not received within 3s, force cleanup')
-      stream.disconnect()
+      // 只有当 stream 仍属于旧会话时才 disconnect，防止误杀新会话的流
+      if (streamConversationId === convId || !streamConversationId) {
+        stream.disconnect()
+      }
       if (currentAssistantId.value === assistantId && assistantId) {
         setMessageStatus(assistantId, 'stopped')
         currentAssistantId.value = null
       }
-      // 强制触发 onStreamEnd 以刷新会话列表
       onStreamEnd?.({
         conversationId: convId,
         reason: 'stopped',
@@ -1029,6 +1035,15 @@ export function useChat(options: UseChatOptions): UseChatReturn {
       if (stopFallbackTimer) { clearTimeout(stopFallbackTimer); stopFallbackTimer = null }
       unsubscribeError()
     })
+
+    // 发送后端 stop 请求（fire-and-forget，不阻塞 resetForNewConversation）
+    if (convId) {
+      fetchWithAuth(`${baseUrl}/api/v1/chat/${convId}/stop`, {
+        method: 'POST',
+      }).catch(e => {
+        console.warn('[useChat] Stop API failed:', e)
+      })
+    }
   }
 
   // 取消排队消息
@@ -1059,8 +1074,9 @@ export function useChat(options: UseChatOptions): UseChatReturn {
     phaseInfo.value = null
 
     // 创建 assistant 占位消息用于接收重连后的流数据
-    const assistantMessage = createAssistantMessage('')
-    assistantMessage.conversationId = conversationId
+    resetCurrentTurnState()
+    const assistantMessage = createAssistantMessage('', conversationId)
+    ;(assistantMessage as any)._turnId = activeTurnId
     currentAssistantId.value = assistantMessage.id as string
 
     try {
@@ -1111,6 +1127,23 @@ export function useChat(options: UseChatOptions): UseChatReturn {
     })
   }
 
+  /** 彻底重置流上下文 — 切换/新建会话时调用，确保旧流状态不污染新会话 */
+  const resetForNewConversation = () => {
+    stream.disconnect()
+    streamConversationId = ''
+    currentAssistantId.value = null
+    currentSegments.value = []
+    segIdCounter.value = 0
+    streamPhase.value = 'idle'
+    phaseInfo.value = null
+    error.value = null
+    messageQueue.clear()
+    if (stopFallbackTimer) {
+      clearTimeout(stopFallbackTimer)
+      stopFallbackTimer = null
+    }
+  }
+
   return {
     messages,
     isGenerating,
@@ -1128,6 +1161,7 @@ export function useChat(options: UseChatOptions): UseChatReturn {
     addMessage,
     clearMessages,
     reconnectStream,
+    resetForNewConversation,
   }
 }
 

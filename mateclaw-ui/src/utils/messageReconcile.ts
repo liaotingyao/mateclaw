@@ -187,19 +187,17 @@ export function reconcileMessages(local: Message[], fetched: Message[]): Message
     }
   }
 
-  // 保留 fetched 中不存在的本地 assistant 消息（防止 lagging snapshot 丢弃刚完成的消息）
-  // 推断当前对话 ID：取 fetched 中第一条消息的 conversationId
+  // 保留 fetched 中不存在的本地消息（user + assistant），防止 lagging snapshot 丢弃刚发送的消息
   const fetchedConversationId = fetched.length > 0 ? (fetched[0] as any).conversationId : ''
   for (const lm of local) {
     const lid = String(lm.id)
-    if (!matchedLocalIds.has(lid) && lm.role === 'assistant') {
+    if (!matchedLocalIds.has(lid)) {
       // 跳过不属于当前对话的本地消息，防止跨对话污染
-      // 无 conversationId 的 orphan 消息也不保留
       const lmConvId = (lm as any).conversationId
       if (!lmConvId || (fetchedConversationId && lmConvId !== fetchedConversationId)) {
         continue
       }
-      // 检查是否是 fetched 末尾之后的消息（刚完成，DB 还没返回）
+      // 只保留在 fetched 末尾之后的消息（刚发送/刚完成，DB 还没返回）
       const lastFetchedTime = result.length > 0 ? result[result.length - 1].createTime : ''
       if (!lastFetchedTime || (lm.createTime && lm.createTime >= lastFetchedTime)) {
         result.push(lm)

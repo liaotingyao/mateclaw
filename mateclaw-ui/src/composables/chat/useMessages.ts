@@ -46,9 +46,9 @@ export interface UseMessagesReturn {
   /** 获取消息 */
   getMessage: (id: string | number) => Message | undefined
   /** 创建用户消息 */
-  createUserMessage: (content: string, contentParts?: MessageContentPart[]) => Message
+  createUserMessage: (content: string, contentParts?: MessageContentPart[], conversationId?: string) => Message
   /** 创建助手消息 */
-  createAssistantMessage: (content?: string) => Message
+  createAssistantMessage: (content?: string, conversationId?: string) => Message
   /** 在消息列表头部插入更早的消息（分页加载） */
   prependMessages: (olderMessages: Message[]) => void
   /** 设置 hasMore 状态 */
@@ -191,14 +191,14 @@ export function useMessages(options: UseMessagesOptions = {}): UseMessagesReturn
   }
 
   // 创建用户消息
-  const createUserMessage = (content: string, contentParts?: MessageContentPart[]): Message => {
+  const createUserMessage = (content: string, contentParts?: MessageContentPart[], conversationId?: string): Message => {
     const parts: MessageContentPart[] = contentParts || [
       { type: 'text', text: content },
     ]
 
     return addMessage({
       role: 'user',
-      conversationId: '', // 由调用方设置
+      conversationId: conversationId || '',
       content,
       contentParts: parts,
       status: 'completed',
@@ -206,10 +206,10 @@ export function useMessages(options: UseMessagesOptions = {}): UseMessagesReturn
   }
 
   // 创建助手消息
-  const createAssistantMessage = (content: string = ''): Message => {
+  const createAssistantMessage = (content: string = '', conversationId?: string): Message => {
     return addMessage({
       role: 'assistant',
-      conversationId: '', // 由调用方设置
+      conversationId: conversationId || '',
       content,
       contentParts: content ? [{ type: 'text', text: content, visibleLength: 0 }] : [],
       status: 'generating',
