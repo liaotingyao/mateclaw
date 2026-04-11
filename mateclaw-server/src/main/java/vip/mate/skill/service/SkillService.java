@@ -82,7 +82,7 @@ public class SkillService {
     public SkillEntity getSkill(Long id) {
         SkillEntity skill = skillMapper.selectById(id);
         if (skill == null) {
-            throw new MateClawException("技能不存在: " + id);
+            throw new MateClawException("err.skill.not_found", "技能不存在: " + id);
         }
         return skill;
     }
@@ -94,14 +94,14 @@ public class SkillService {
     public SkillEntity createSkill(SkillEntity skill) {
         // 验证名称不为空
         if (skill.getName() == null || skill.getName().isBlank()) {
-            throw new MateClawException("技能名称不能为空");
+            throw new MateClawException("err.skill.name_required", "技能名称不能为空");
         }
 
         // 检查名称唯一性
         Long count = skillMapper.selectCount(new LambdaQueryWrapper<SkillEntity>()
                 .eq(SkillEntity::getName, skill.getName()));
         if (count > 0) {
-            throw new MateClawException("技能名称已存在: " + skill.getName());
+            throw new MateClawException("err.skill.name_exists", "技能名称已存在: " + skill.getName());
         }
 
         // 设置默认值
@@ -187,7 +187,7 @@ public class SkillService {
     public void deleteSkill(Long id) {
         SkillEntity skill = getSkill(id);
         if (Boolean.TRUE.equals(skill.getBuiltin())) {
-            throw new MateClawException("内置技能不可删除: " + skill.getName());
+            throw new MateClawException("err.skill.builtin_readonly", "内置技能不可删除: " + skill.getName());
         }
         skillMapper.deleteById(id);
         log.info("Deleted skill: {}", skill.getName());

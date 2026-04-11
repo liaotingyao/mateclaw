@@ -50,7 +50,7 @@ public class McpServerService {
     public McpServerEntity getById(Long id) {
         McpServerEntity entity = mcpServerMapper.selectById(id);
         if (entity == null) {
-            throw new MateClawException("MCP server 不存在: " + id);
+            throw new MateClawException("err.mcp.not_found", "MCP server 不存在: " + id);
         }
         return entity;
     }
@@ -124,7 +124,7 @@ public class McpServerService {
     public void delete(Long id) {
         McpServerEntity entity = getById(id);
         if (Boolean.TRUE.equals(entity.getBuiltin())) {
-            throw new MateClawException("内置 MCP server 不可删除");
+            throw new MateClawException("err.mcp.builtin_readonly", "内置 MCP server 不可删除");
         }
 
         // Disconnect first
@@ -305,21 +305,21 @@ public class McpServerService {
 
     private void validateServer(McpServerEntity entity) {
         if (entity.getName() == null || entity.getName().isBlank()) {
-            throw new MateClawException("MCP server 名称不能为空");
+            throw new MateClawException("err.mcp.name_required", "MCP server 名称不能为空");
         }
         if (entity.getTransport() == null || entity.getTransport().isBlank()) {
-            throw new MateClawException("传输类型不能为空");
+            throw new MateClawException("err.mcp.transport_required", "传输类型不能为空");
         }
         if (!List.of("stdio", "sse", "streamable_http").contains(entity.getTransport())) {
-            throw new MateClawException("不支持的传输类型: " + entity.getTransport());
+            throw new MateClawException("err.mcp.transport_unsupported", "不支持的传输类型: " + entity.getTransport());
         }
         if ("stdio".equals(entity.getTransport())) {
             if (entity.getCommand() == null || entity.getCommand().isBlank()) {
-                throw new MateClawException("stdio 类型必须指定 command");
+                throw new MateClawException("err.mcp.stdio_command_required", "stdio 类型必须指定 command");
             }
         } else {
             if (entity.getUrl() == null || entity.getUrl().isBlank()) {
-                throw new MateClawException("HTTP/SSE 类型必须指定 url");
+                throw new MateClawException("err.mcp.http_url_required", "HTTP/SSE 类型必须指定 url");
             }
         }
         // Validate JSON fields — 不仅要求合法 JSON，还要求正确的结构类型

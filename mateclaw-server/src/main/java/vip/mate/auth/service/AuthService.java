@@ -51,7 +51,7 @@ public class AuthService {
                 .eq(UserEntity::getEnabled, true));
 
         if (user == null || !passwordEncoder.matches(request.getPassword(), user.getPassword())) {
-            throw new MateClawException("用户名或密码错误");
+            throw new MateClawException("err.auth.invalid_credentials", "用户名或密码错误");
         }
 
         String token = generateToken(user);
@@ -74,7 +74,7 @@ public class AuthService {
         Long count = userMapper.selectCount(new LambdaQueryWrapper<UserEntity>()
                 .eq(UserEntity::getUsername, user.getUsername()));
         if (count > 0) {
-            throw new MateClawException("用户名已存在: " + user.getUsername());
+            throw new MateClawException("err.auth.username_exists", "用户名已存在: " + user.getUsername());
         }
         user.setPassword(passwordEncoder.encode(user.getPassword()));
         user.setEnabled(true);
@@ -92,10 +92,10 @@ public class AuthService {
     public void changePassword(Long userId, String oldPassword, String newPassword) {
         UserEntity user = userMapper.selectById(userId);
         if (user == null) {
-            throw new MateClawException("用户不存在");
+            throw new MateClawException("err.auth.user_not_found", "用户不存在");
         }
         if (!passwordEncoder.matches(oldPassword, user.getPassword())) {
-            throw new MateClawException("原密码错误");
+            throw new MateClawException("err.auth.wrong_password", "原密码错误");
         }
         user.setPassword(passwordEncoder.encode(newPassword));
         userMapper.updateById(user);

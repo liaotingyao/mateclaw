@@ -110,7 +110,7 @@ public class CronJobService implements ApplicationRunner {
     public CronJobDTO getById(Long id) {
         CronJobEntity entity = cronJobMapper.selectById(id);
         if (entity == null) {
-            throw new MateClawException("定时任务不存在: " + id);
+            throw new MateClawException("err.cron.not_found", "定时任务不存在: " + id);
         }
         AgentEntity agent = agentMapper.selectById(entity.getAgentId());
         return CronJobDTO.from(entity, agent != null ? agent.getName() : "Unknown");
@@ -140,7 +140,7 @@ public class CronJobService implements ApplicationRunner {
     public CronJobDTO update(Long id, CronJobDTO dto) {
         CronJobEntity existing = cronJobMapper.selectById(id);
         if (existing == null) {
-            throw new MateClawException("定时任务不存在: " + id);
+            throw new MateClawException("err.cron.not_found", "定时任务不存在: " + id);
         }
         validateDto(dto);
         String springCron = toSpringCron(dto.getCronExpression());
@@ -176,7 +176,7 @@ public class CronJobService implements ApplicationRunner {
     public void delete(Long id) {
         CronJobEntity entity = cronJobMapper.selectById(id);
         if (entity == null) {
-            throw new MateClawException("定时任务不存在: " + id);
+            throw new MateClawException("err.cron.not_found", "定时任务不存在: " + id);
         }
         schedulerLock.lock();
         try {
@@ -190,7 +190,7 @@ public class CronJobService implements ApplicationRunner {
     public void toggle(Long id, Boolean enabled) {
         CronJobEntity entity = cronJobMapper.selectById(id);
         if (entity == null) {
-            throw new MateClawException("定时任务不存在: " + id);
+            throw new MateClawException("err.cron.not_found", "定时任务不存在: " + id);
         }
         entity.setEnabled(enabled);
 
@@ -218,7 +218,7 @@ public class CronJobService implements ApplicationRunner {
     public void runNow(Long id) {
         CronJobEntity entity = cronJobMapper.selectById(id);
         if (entity == null) {
-            throw new MateClawException("定时任务不存在: " + id);
+            throw new MateClawException("err.cron.not_found", "定时任务不存在: " + id);
         }
         // 异步执行，不阻塞请求线程
         scheduler.submit(() -> executeJob(entity));
@@ -404,20 +404,20 @@ public class CronJobService implements ApplicationRunner {
 
     private void validateDto(CronJobDTO dto) {
         if (dto.getName() == null || dto.getName().isBlank()) {
-            throw new MateClawException("任务名称不能为空");
+            throw new MateClawException("err.cron.name_required", "任务名称不能为空");
         }
         if (dto.getAgentId() == null) {
-            throw new MateClawException("请选择关联 Agent");
+            throw new MateClawException("err.cron.agent_required", "请选择关联 Agent");
         }
         if (dto.getCronExpression() == null || dto.getCronExpression().isBlank()) {
-            throw new MateClawException("Cron 表达式不能为空");
+            throw new MateClawException("err.cron.expression_required", "Cron 表达式不能为空");
         }
         String taskType = dto.getTaskType() != null ? dto.getTaskType() : "text";
         if ("text".equals(taskType) && (dto.getTriggerMessage() == null || dto.getTriggerMessage().isBlank())) {
-            throw new MateClawException("触发消息不能为空");
+            throw new MateClawException("err.cron.trigger_required", "触发消息不能为空");
         }
         if ("agent".equals(taskType) && (dto.getRequestBody() == null || dto.getRequestBody().isBlank())) {
-            throw new MateClawException("执行目标不能为空");
+            throw new MateClawException("err.cron.target_required", "执行目标不能为空");
         }
     }
 }

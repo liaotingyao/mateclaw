@@ -140,7 +140,7 @@
                   </svg>
                 </button>
               </div>
-              <span v-if="hasChanges" class="change-badge">{{ t('agentContext.modified') || '已修改' }}</span>
+              <span v-if="hasChanges" class="change-badge">{{ t('agentContext.modified') }}</span>
             </div>
 
             <div class="editor-content" :class="'mode-' + previewMode">

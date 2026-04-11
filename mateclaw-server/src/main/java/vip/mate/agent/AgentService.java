@@ -56,7 +56,7 @@ public class AgentService {
     public AgentEntity getAgent(Long id) {
         AgentEntity entity = agentMapper.selectById(id);
         if (entity == null) {
-            throw new MateClawException("Agent不存在: " + id);
+            throw new MateClawException("err.agent.not_found", "Agent不存在: " + id);
         }
         return entity;
     }
@@ -194,7 +194,7 @@ public class AgentService {
         return agentInstances.computeIfAbsent(agentId, id -> {
             AgentEntity entity = getAgent(id);
             if (!Boolean.TRUE.equals(entity.getEnabled())) {
-                throw new MateClawException("Agent 已禁用: " + entity.getName());
+                throw new MateClawException("err.agent.disabled", "Agent 已禁用: " + entity.getName());
             }
             return agentGraphBuilder.build(entity);
         });

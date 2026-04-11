@@ -2,6 +2,7 @@ package vip.mate.exception;
 
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
+import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.MediaType;
 import org.springframework.validation.BindException;
@@ -9,15 +10,23 @@ import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
 import org.springframework.web.context.request.async.AsyncRequestTimeoutException;
 import vip.mate.common.result.R;
+import vip.mate.i18n.I18nService;
 
 /**
  * 全局异常处理器
+ * <p>
+ * MateClawException 的中文消息通过 I18nService 查表翻译：
+ * 中文原文作为 key 前缀查 properties（err.msg.{hash}），
+ * 找到翻译返回翻译，找不到返回原文。
  *
  * @author MateClaw Team
  */
 @Slf4j
 @RestControllerAdvice
+@RequiredArgsConstructor
 public class GlobalExceptionHandler {
+
+    private final I18nService i18nService;
 
     @ExceptionHandler(AsyncRequestTimeoutException.class)
     public R<Void> handleAsyncTimeout(AsyncRequestTimeoutException e,
@@ -36,7 +45,24 @@ public class GlobalExceptionHandler {
     @ExceptionHandler(MateClawException.class)
     public R<Void> handleMateClawException(MateClawException e) {
         log.warn("Business exception: [{}] {}", e.getCode(), e.getMessage());
-        return R.fail(e.getCode(), e.getMessage());
+        String msg = translateExceptionMsg(e);
+        return R.fail(e.getCode(), msg);
+    }
+
+    /**
+     * Translate exception message via i18n.
+     * If the exception has a msgKey, use it to look up the translated message.
+     * Otherwise return the original message as-is.
+     */
+    private String translateExceptionMsg(MateClawException e) {
+        String msgKey = e.getMsgKey();
+        if (msgKey != null && !msgKey.isEmpty()) {
+            String translated = i18nService.msg(msgKey);
+            if (!translated.equals(msgKey)) {
+                return translated;
+            }
+        }
+        return e.getMessage();
     }
 
     @ExceptionHandler(BindException.class)

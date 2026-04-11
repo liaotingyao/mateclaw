@@ -64,7 +64,7 @@ public class WorkspaceService {
     public WorkspaceEntity getById(Long id) {
         WorkspaceEntity entity = workspaceMapper.selectById(id);
         if (entity == null) {
-            throw new MateClawException("工作区不存在: " + id);
+            throw new MateClawException("err.workspace.not_found", "工作区不存在: " + id);
         }
         return entity;
     }
@@ -79,7 +79,7 @@ public class WorkspaceService {
     public WorkspaceEntity create(WorkspaceEntity entity, Long creatorUserId) {
         // 验证 slug 唯一
         if (getBySlug(entity.getSlug()) != null) {
-            throw new MateClawException("工作区标识已存在: " + entity.getSlug());
+            throw new MateClawException("err.workspace.slug_exists", "工作区标识已存在: " + entity.getSlug());
         }
         entity.setOwnerId(creatorUserId);
         workspaceMapper.insert(entity);
@@ -103,12 +103,12 @@ public class WorkspaceService {
         }
         // 不允许修改默认工作区的 slug
         if (DEFAULT_SLUG.equals(existing.getSlug()) && !DEFAULT_SLUG.equals(entity.getSlug())) {
-            throw new MateClawException("不能修改默认工作区的标识");
+            throw new MateClawException("err.workspace.cannot_modify_default", "不能修改默认工作区的标识");
         }
         // 验证 slug 唯一性（如果修改了 slug）
         if (!entity.getSlug().equals(existing.getSlug())) {
             if (getBySlug(entity.getSlug()) != null) {
-                throw new MateClawException("工作区标识已存在: " + entity.getSlug());
+                throw new MateClawException("err.workspace.slug_exists", "工作区标识已存在: " + entity.getSlug());
             }
         }
         workspaceMapper.updateById(entity);
@@ -118,7 +118,7 @@ public class WorkspaceService {
     public void delete(Long id) {
         WorkspaceEntity existing = getById(id);
         if (DEFAULT_SLUG.equals(existing.getSlug())) {
-            throw new MateClawException("不能删除默认工作区");
+            throw new MateClawException("err.workspace.cannot_delete_default", "不能删除默认工作区");
         }
         workspaceMapper.deleteById(id);
         log.info("Deleted workspace: {} (id={})", existing.getName(), id);
@@ -147,7 +147,7 @@ public class WorkspaceService {
         // 检查是否已是成员
         WorkspaceMemberEntity existing = getMembership(workspaceId, userId);
         if (existing != null) {
-            throw new MateClawException("用户已经是该工作区的成员");
+            throw new MateClawException("err.workspace.member_exists", "用户已经是该工作区的成员");
         }
         WorkspaceMemberEntity member = new WorkspaceMemberEntity();
         member.setWorkspaceId(workspaceId);
@@ -162,10 +162,10 @@ public class WorkspaceService {
     public WorkspaceMemberEntity updateMemberRole(Long workspaceId, Long userId, String role) {
         WorkspaceMemberEntity member = getMembership(workspaceId, userId);
         if (member == null) {
-            throw new MateClawException("用户不是该工作区的成员");
+            throw new MateClawException("err.workspace.not_member", "用户不是该工作区的成员");
         }
         if ("owner".equals(member.getRole())) {
-            throw new MateClawException("不能修改工作区拥有者的角色");
+            throw new MateClawException("err.workspace.cannot_modify_owner", "不能修改工作区拥有者的角色");
         }
         member.setRole(role);
         memberMapper.updateById(member);
@@ -176,10 +176,10 @@ public class WorkspaceService {
     public void removeMember(Long workspaceId, Long userId) {
         WorkspaceMemberEntity member = getMembership(workspaceId, userId);
         if (member == null) {
-            throw new MateClawException("用户不是该工作区的成员");
+            throw new MateClawException("err.workspace.not_member", "用户不是该工作区的成员");
         }
         if ("owner".equals(member.getRole())) {
-            throw new MateClawException("不能移除工作区拥有者");
+            throw new MateClawException("err.workspace.cannot_remove_owner", "不能移除工作区拥有者");
         }
         memberMapper.deleteById(member.getId());
         evictMembershipCache(workspaceId, userId);
@@ -209,7 +209,7 @@ public class WorkspaceService {
      */
     public void requirePermission(Long workspaceId, Long userId, String minRole) {
         if (!hasPermission(workspaceId, userId, minRole)) {
-            throw new MateClawException("权限不足：需要 " + minRole + " 或更高角色");
+            throw new MateClawException("err.workspace.insufficient_permission", "权限不足：需要 " + minRole + " 或更高角色");
         }
     }
 

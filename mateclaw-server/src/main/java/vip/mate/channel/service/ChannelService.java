@@ -85,7 +85,7 @@ public class ChannelService {
     public ChannelEntity getChannel(Long id) {
         ChannelEntity channel = channelMapper.selectById(id);
         if (channel == null) {
-            throw new MateClawException("渠道不存在: " + id);
+            throw new MateClawException("err.channel.not_found", "渠道不存在: " + id);
         }
         return channel;
     }
@@ -96,10 +96,10 @@ public class ChannelService {
     public ChannelEntity createChannel(ChannelEntity channel) {
         // 验证名称
         if (channel.getName() == null || channel.getName().isBlank()) {
-            throw new MateClawException("渠道名称不能为空");
+            throw new MateClawException("err.channel.name_required", "渠道名称不能为空");
         }
         if (channel.getChannelType() == null || channel.getChannelType().isBlank()) {
-            throw new MateClawException("渠道类型不能为空");
+            throw new MateClawException("err.channel.type_required", "渠道类型不能为空");
         }
         if (channel.getEnabled() == null) {
             channel.setEnabled(false);

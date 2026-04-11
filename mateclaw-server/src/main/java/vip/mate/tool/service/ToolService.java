@@ -34,7 +34,7 @@ public class ToolService {
     public ToolEntity getTool(Long id) {
         ToolEntity tool = toolMapper.selectById(id);
         if (tool == null) {
-            throw new MateClawException("工具不存在: " + id);
+            throw new MateClawException("err.tool.not_found", "工具不存在: " + id);
         }
         return tool;
     }
@@ -62,7 +62,7 @@ public class ToolService {
     public void deleteTool(Long id) {
         ToolEntity tool = getTool(id);
         if (Boolean.TRUE.equals(tool.getBuiltin())) {
-            throw new MateClawException("内置工具不可删除");
+            throw new MateClawException("err.tool.builtin_readonly", "内置工具不可删除");
         }
         toolMapper.deleteById(id);
     }
