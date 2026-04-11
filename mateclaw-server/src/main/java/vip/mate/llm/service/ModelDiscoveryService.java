@@ -32,7 +32,7 @@ public class ModelDiscoveryService {
     public DiscoverResult discoverModels(String providerId) {
         ModelProviderEntity provider = modelProviderService.getProviderConfig(providerId);
         if (!Boolean.TRUE.equals(provider.getSupportModelDiscovery())) {
-            throw new MateClawException("该供应商不支持模型发现: " + providerId);
+            throw new MateClawException("err.llm.discovery_not_supported", "该供应商不支持模型发现: " + providerId);
         }
 
         ModelProtocol protocol = ModelProtocol.fromChatModel(provider.getChatModel());
@@ -66,7 +66,7 @@ public class ModelDiscoveryService {
                 // 不支持模型发现（如智谱）：用第一个已配置模型发送测试请求
                 List<ModelConfigEntity> models = modelConfigService.listModelsByProvider(providerId);
                 if (models.isEmpty()) {
-                    throw new MateClawException("该供应商没有已配置的模型，无法测试连接");
+                    throw new MateClawException("err.llm.no_model_for_test", "该供应商没有已配置的模型，无法测试连接");
                 }
                 String testModelId = models.get(0).getModelName();
                 String response = sendTestPrompt(provider, protocol, testModelId);
@@ -122,14 +122,14 @@ public class ModelDiscoveryService {
             case DASHSCOPE_NATIVE -> fetchDashScopeModels(provider);
             case GEMINI_NATIVE -> fetchGeminiModels(provider);
             case ANTHROPIC_MESSAGES -> fetchAnthropicModels(provider);
-            case OPENAI_CHATGPT -> throw new MateClawException("ChatGPT OAuth provider 不支持模型发现");
+            case OPENAI_CHATGPT -> throw new MateClawException("err.llm.chatgpt_no_discovery", "ChatGPT OAuth provider 不支持模型发现");
         };
     }
 
     private List<ModelInfoDTO> fetchOpenAiCompatibleModels(ModelProviderEntity provider) {
         String baseUrl = normalizeBaseUrl(provider.getBaseUrl());
         if (!StringUtils.hasText(baseUrl)) {
-            throw new MateClawException("Base URL 未配置");
+            throw new MateClawException("err.llm.base_url_missing", "Base URL 未配置");
         }
         String apiKey = provider.getApiKey();
 
@@ -153,7 +153,7 @@ public class ModelDiscoveryService {
     private List<ModelInfoDTO> fetchDashScopeModels(ModelProviderEntity provider) {
         String apiKey = provider.getApiKey();
         if (!modelProviderService.hasUsableApiKey(apiKey)) {
-            throw new MateClawException("DashScope API Key 未配置");
+            throw new MateClawException("err.llm.dashscope_key_missing", "DashScope API Key 未配置");
         }
 
         // DashScope 兼容模式暴露了 OpenAI 兼容的 /v1/models 端点
@@ -170,7 +170,7 @@ public class ModelDiscoveryService {
     private List<ModelInfoDTO> fetchGeminiModels(ModelProviderEntity provider) {
         String apiKey = provider.getApiKey();
         if (!modelProviderService.hasUsableApiKey(apiKey)) {
-            throw new MateClawException("Gemini API Key 未配置");
+            throw new MateClawException("err.llm.gemini_key_missing", "Gemini API Key 未配置");
         }
 
         RestClient client = RestClient.builder()
@@ -188,7 +188,7 @@ public class ModelDiscoveryService {
     private List<ModelInfoDTO> fetchAnthropicModels(ModelProviderEntity provider) {
         String apiKey = provider.getApiKey();
         if (!modelProviderService.hasUsableApiKey(apiKey)) {
-            throw new MateClawException("Anthropic API Key 未配置");
+            throw new MateClawException("err.llm.anthropic_key_missing", "Anthropic API Key 未配置");
         }
 
         String baseUrl = StringUtils.hasText(provider.getBaseUrl())
@@ -214,14 +214,14 @@ public class ModelDiscoveryService {
             case DASHSCOPE_NATIVE -> sendDashScopeTestPrompt(provider, modelId);
             case GEMINI_NATIVE -> sendGeminiTestPrompt(provider, modelId);
             case ANTHROPIC_MESSAGES -> sendAnthropicTestPrompt(provider, modelId);
-            case OPENAI_CHATGPT -> throw new MateClawException("ChatGPT OAuth provider 不支持模型测试");
+            case OPENAI_CHATGPT -> throw new MateClawException("err.llm.chatgpt_no_test", "ChatGPT OAuth provider 不支持模型测试");
         };
     }
 
     private String sendOpenAiTestPrompt(ModelProviderEntity provider, String modelId) {
         String baseUrl = normalizeBaseUrl(provider.getBaseUrl());
         if (!StringUtils.hasText(baseUrl)) {
-            throw new MateClawException("Base URL 未配置");
+            throw new MateClawException("err.llm.base_url_missing", "Base URL 未配置");
         }
 
         Map<String, Object> requestBody = Map.of(
@@ -255,7 +255,7 @@ public class ModelDiscoveryService {
     private String sendDashScopeTestPrompt(ModelProviderEntity provider, String modelId) {
         String apiKey = provider.getApiKey();
         if (!modelProviderService.hasUsableApiKey(apiKey)) {
-            throw new MateClawException("DashScope API Key 未配置");
+            throw new MateClawException("err.llm.dashscope_key_missing", "DashScope API Key 未配置");
         }
 
         Map<String, Object> requestBody = Map.of(
@@ -281,7 +281,7 @@ public class ModelDiscoveryService {
     private String sendGeminiTestPrompt(ModelProviderEntity provider, String modelId) {
         String apiKey = provider.getApiKey();
         if (!modelProviderService.hasUsableApiKey(apiKey)) {
-            throw new MateClawException("Gemini API Key 未配置");
+            throw new MateClawException("err.llm.gemini_key_missing", "Gemini API Key 未配置");
         }
 
         Map<String, Object> requestBody = Map.of(
@@ -306,7 +306,7 @@ public class ModelDiscoveryService {
     private String sendAnthropicTestPrompt(ModelProviderEntity provider, String modelId) {
         String apiKey = provider.getApiKey();
         if (!modelProviderService.hasUsableApiKey(apiKey)) {
-            throw new MateClawException("Anthropic API Key 未配置");
+            throw new MateClawException("err.llm.anthropic_key_missing", "Anthropic API Key 未配置");
         }
 
         String baseUrl = StringUtils.hasText(provider.getBaseUrl())

@@ -34,7 +34,7 @@ public class DatasourceConnectionManager implements DisposableBean {
         try {
             return ds.getConnection();
         } catch (SQLException e) {
-            throw new MateClawException("获取数据库连接失败: " + e.getMessage());
+            throw new MateClawException("err.datasource.connection_failed", "获取数据库连接失败: " + e.getMessage());
         }
     }
 
@@ -122,14 +122,14 @@ public class DatasourceConnectionManager implements DisposableBean {
                 baseUrl = String.format("jdbc:clickhouse://%s:%d/%s", host, port, dbName);
                 break;
             default:
-                throw new MateClawException("不支持的数据库类型: " + dbType);
+                throw new MateClawException("err.datasource.unsupported_db", "不支持的数据库类型: " + dbType);
         }
 
         if (extra != null && !extra.isBlank()) {
             // 安全检查：拒绝危险参数
             String lowerExtra = extra.toLowerCase();
             if (lowerExtra.contains("allowloadlocalinfile") || lowerExtra.contains("autodeserialize")) {
-                throw new MateClawException("JDBC 参数包含不安全选项");
+                throw new MateClawException("err.datasource.unsafe_jdbc", "JDBC 参数包含不安全选项");
             }
             baseUrl += (baseUrl.contains("?") ? "&" : "?") + extra;
         }

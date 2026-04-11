@@ -73,7 +73,7 @@ public class TemplateService {
         TemplateDTO template = listTemplates().stream()
                 .filter(t -> t.getId().equals(templateId))
                 .findFirst()
-                .orElseThrow(() -> new MateClawException("模板不存在: " + templateId));
+                .orElseThrow(() -> new MateClawException("err.agent.template_not_found", "模板不存在: " + templateId));
 
         // 1. 创建 Agent
         AgentEntity agent = new AgentEntity();

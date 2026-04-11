@@ -95,7 +95,7 @@ public class ChatGPTResponsesClient {
                 .filter(line -> !line.isBlank() && !line.equals("[DONE]"))
                 .mapNotNull(this::parseSSEEvent)
                 .onErrorMap(e -> e instanceof MateClawException ? e
-                        : new MateClawException("ChatGPT 流式调用失败: " + e.getMessage()));
+                        : new MateClawException("err.llm.chatgpt_stream_failed", "ChatGPT 流式调用失败: " + e.getMessage()));
     }
 
     /**
@@ -290,7 +290,7 @@ public class ChatGPTResponsesClient {
             if ("response.failed".equals(type)) {
                 String error = node.path("response").path("error").path("message").asText("Unknown error");
                 log.error("[ChatGPT] Responses API error: {}", error);
-                throw new MateClawException("ChatGPT 返回错误: " + error);
+                throw new MateClawException("err.llm.chatgpt_error", "ChatGPT 返回错误: " + error);
             }
 
             return null;
@@ -305,7 +305,7 @@ public class ChatGPTResponsesClient {
 
     private void setHeaders(HttpHeaders headers, String accessToken, String accountId) {
         if (accountId == null || accountId.isBlank()) {
-            throw new MateClawException("chatgpt-account-id 缺失，请断开后重新 OAuth 登录");
+            throw new MateClawException("err.llm.chatgpt_account_missing", "chatgpt-account-id 缺失，请断开后重新 OAuth 登录");
         }
         headers.setBearerAuth(accessToken);
         headers.set("chatgpt-account-id", accountId);

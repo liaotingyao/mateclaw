@@ -65,7 +65,7 @@ public class DashboardController {
             if (agent != null && agent.getWorkspaceId() != null) {
                 long wsId = workspaceId != null ? workspaceId : 1L;
                 if (!agent.getWorkspaceId().equals(wsId)) {
-                    throw new MateClawException("资源不属于当前工作区");
+                    throw new MateClawException("err.common.wrong_workspace", "资源不属于当前工作区");
                 }
             }
         }

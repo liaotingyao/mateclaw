@@ -51,10 +51,10 @@ public class ModelProviderService {
 
     public ProviderInfoDTO createCustomProvider(CreateCustomProviderRequest request) {
         if (!StringUtils.hasText(request.getId()) || !StringUtils.hasText(request.getName())) {
-            throw new MateClawException("Provider id 和名称不能为空");
+            throw new MateClawException("err.llm.provider_fields_required", "Provider id 和名称不能为空");
         }
         if (modelProviderMapper.selectById(request.getId()) != null) {
-            throw new MateClawException("Provider 已存在: " + request.getId());
+            throw new MateClawException("err.llm.provider_exists", "Provider 已存在: " + request.getId());
         }
         ModelProviderEntity provider = new ModelProviderEntity();
         provider.setProviderId(request.getId());
@@ -83,7 +83,7 @@ public class ModelProviderService {
     public void deleteCustomProvider(String providerId) {
         ModelProviderEntity provider = getProvider(providerId);
         if (!Boolean.TRUE.equals(provider.getIsCustom())) {
-            throw new MateClawException("内置 Provider 不支持删除");
+            throw new MateClawException("err.llm.provider_builtin_readonly", "内置 Provider 不支持删除");
         }
         modelConfigService.deleteModelsByProvider(providerId);
         modelProviderMapper.deleteById(providerId);
@@ -159,7 +159,7 @@ public class ModelProviderService {
     private ModelProviderEntity getProvider(String providerId) {
         ModelProviderEntity provider = modelProviderMapper.selectById(providerId);
         if (provider == null) {
-            throw new MateClawException("Provider 不存在: " + providerId);
+            throw new MateClawException("err.llm.provider_not_found", "Provider 不存在: " + providerId);
         }
         return provider;
     }

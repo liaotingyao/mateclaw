@@ -543,69 +543,69 @@ interface WebhookGuideInfo {
   steps: string[]
 }
 
-const WEBHOOK_GUIDES: Record<string, WebhookGuideInfo> = {
+const WEBHOOK_GUIDES = computed<Record<string, WebhookGuideInfo>>(() => ({
   dingtalk: {
     steps: [
-      '在 <a href="https://open-dev.dingtalk.com/" target="_blank" rel="noopener">钉钉开放平台</a> 创建机器人，填入 <b>AppKey</b> 和 <b>AppSecret</b>',
-      'Stream 模式（推荐）：消息接收模式选「Stream 模式」，无需公网 IP 即可使用',
-      'Webhook 模式：消息接收模式选「HTTP 模式」，将 Webhook URL 填入回调地址',
+      t('channels.guide.dingtalk.step1'),
+      t('channels.guide.dingtalk.step2'),
+      t('channels.guide.dingtalk.step3'),
     ],
   },
   feishu: {
     steps: [
-      '前往 <a href="https://open.feishu.cn/" target="_blank" rel="noopener">飞书开放平台</a> 创建企业自建应用',
-      '将应用的 <b>App ID</b> 和 <b>App Secret</b> 填入下方配置',
-      '<b>Webhook 模式</b>：在「事件订阅」配置中将请求地址设置为上方 Webhook URL，并订阅 <code>im.message.receive_v1</code> 事件',
-      '<b>WebSocket 模式</b>：无需公网地址，在下方接入模式中选择「WebSocket（长连接）」即可。需在飞书后台「事件订阅」中选择长连接方式',
-      '如需昵称显示，请在「权限管理」中申请 <code>contact:user.base:readonly</code> 权限',
+      t('channels.guide.feishu.step1'),
+      t('channels.guide.feishu.step2'),
+      t('channels.guide.feishu.step3'),
+      t('channels.guide.feishu.step4'),
+      t('channels.guide.feishu.step5'),
     ],
   },
   telegram: {
     steps: [
-      '在 Telegram 中搜索 <a href="https://t.me/BotFather" target="_blank" rel="noopener">@BotFather</a>，发送 <code>/newbot</code> 创建 Bot',
-      '将 BotFather 返回的 <b>Bot Token</b> 填入下方配置',
-      '<b>Long-Polling 模式</b>（推荐）：启动后自动通过 <code>getUpdates</code> 轮询接收消息，<b>无需公网 IP</b>',
-      '<b>Webhook 模式</b>：需要公网可访问的回调地址，切换接入模式后填入 Webhook URL',
+      t('channels.guide.telegram.step1'),
+      t('channels.guide.telegram.step2'),
+      t('channels.guide.telegram.step3'),
+      t('channels.guide.telegram.step4'),
     ],
   },
   discord: {
     steps: [
-      '前往 <a href="https://discord.com/developers/applications" target="_blank" rel="noopener">Discord Developer Portal</a> 创建 Application',
-      '在 Bot 页面创建 Bot 并复制 <b>Bot Token</b> 填入下方配置',
-      '在 Bot 页面开启 <b>MESSAGE CONTENT Intent</b>（Privileged Gateway Intents 区域）',
-      '在 OAuth2 → URL Generator 中勾选 <b>bot</b> scope 和 <b>Send Messages / Read Message History</b> 权限，生成邀请链接将 Bot 添加到目标服务器',
-      '启动后通过 <b>Gateway WebSocket</b> 自动接收消息，<b>无需公网 IP 和回调 URL</b>',
+      t('channels.guide.discord.step1'),
+      t('channels.guide.discord.step2'),
+      t('channels.guide.discord.step3'),
+      t('channels.guide.discord.step4'),
+      t('channels.guide.discord.step5'),
     ],
   },
   wecom: {
     steps: [
-      '前往 <a href="https://work.weixin.qq.com/wework_admin/frame" target="_blank" rel="noopener">企业微信管理后台</a>，进入「应用管理 → 智能机器人」创建一个新的智能机器人',
-      '在机器人配置中选择「<b>API 模式 → 配置长连接</b>」',
-      '记录机器人的 <b>Bot ID</b> 和 <b>Secret</b>，填入下方配置',
-      '启动渠道后即可在企业微信中扫码添加机器人对话，<b>无需公网 IP 和回调 URL</b>',
+      t('channels.guide.wecom.step1'),
+      t('channels.guide.wecom.step2'),
+      t('channels.guide.wecom.step3'),
+      t('channels.guide.wecom.step4'),
     ],
   },
   weixin: {
     steps: [
-      '确保已获得微信 <b>iLink Bot</b> 内测资格（目前为受邀内测阶段）',
-      '点击下方「获取登录二维码」按钮，用微信扫码登录',
-      '扫码成功后系统自动获取 <b>bot_token</b> 并填入配置',
-      '启动渠道后通过 <b>HTTP 长轮询</b>自动接收消息，<b>无需公网 IP 和回调 URL</b>',
+      t('channels.guide.weixin.step1'),
+      t('channels.guide.weixin.step2'),
+      t('channels.guide.weixin.step3'),
+      t('channels.guide.weixin.step4'),
     ],
   },
   qq: {
     steps: [
-      '前往 <a href="https://q.qq.com/" target="_blank" rel="noopener">QQ 开放平台</a> 创建机器人应用',
-      '在应用管理页面获取 <b>AppID</b> 和 <b>AppSecret</b>，填入下方配置',
-      '在「功能配置 → 消息订阅」中开启需要的消息类型（C2C 消息、群聊 @消息、频道消息等）',
-      '启动渠道后通过 <b>WebSocket 长连接</b>自动接收消息，<b>无需公网 IP 和回调 URL</b>',
+      t('channels.guide.qq.step1'),
+      t('channels.guide.qq.step2'),
+      t('channels.guide.qq.step3'),
+      t('channels.guide.qq.step4'),
     ],
   },
-}
+}))
 
 /** 当前渠道是否有接入引导 */
 const webhookGuide = computed<WebhookGuideInfo | null>(() => {
-  return WEBHOOK_GUIDES[form.value.channelType] || null
+  return WEBHOOK_GUIDES.value[form.value.channelType] || null
 })
 
 /** 当前渠道是否需要 Webhook URL（WebSocket / Stream / Long-Polling 模式不需要） */
@@ -823,37 +823,32 @@ const feishuPermissionUrl = computed(() => {
 const feishuRequiredPermissions = computed(() => {
   const perms: { scope: string; desc: string; reason: string }[] = []
 
-  // 基础权限（始终需要）
   perms.push(
-    { scope: 'im:message', desc: '获取与发送单聊、群组消息', reason: '基础：收发消息' },
-    { scope: 'im:message.receive_v1', desc: '接收消息事件', reason: '基础：接收用户消息' },
+    { scope: 'im:message', desc: t('channels.feishu.perm.message'), reason: t('channels.feishu.perm.messageReason') },
+    { scope: 'im:message.receive_v1', desc: t('channels.feishu.perm.receive'), reason: t('channels.feishu.perm.receiveReason') },
   )
 
-  // WebSocket 模式需要的权限
   if (channelConfig.value?.connection_mode === 'websocket') {
     perms.push(
-      { scope: 'im:resource', desc: '获取消息中的资源文件', reason: 'WebSocket 模式下获取消息内容' },
+      { scope: 'im:resource', desc: t('channels.feishu.perm.resource'), reason: t('channels.feishu.perm.resourceReason') },
     )
   }
 
-  // 消息反应
   if (channelConfig.value?.enable_reaction !== false) {
     perms.push(
-      { scope: 'im:message.reactions', desc: '管理消息表情回复', reason: '消息反应：添加 👍 表情' },
+      { scope: 'im:message.reactions', desc: t('channels.feishu.perm.reactions'), reason: t('channels.feishu.perm.reactionsReason') },
     )
   }
 
-  // 昵称获取
   if (channelConfig.value?.enable_nickname_cache !== false) {
     perms.push(
-      { scope: 'contact:user.base:readonly', desc: '获取用户基本信息', reason: '昵称获取：显示用户真实姓名' },
+      { scope: 'contact:user.base:readonly', desc: t('channels.feishu.perm.contact'), reason: t('channels.feishu.perm.contactReason') },
     )
   }
 
-  // 媒体下载
   if (channelConfig.value?.media_download_enabled) {
     perms.push(
-      { scope: 'im:message.resource', desc: '获取消息中的资源文件', reason: '媒体下载：下载图片和文件' },
+      { scope: 'im:message.resource', desc: t('channels.feishu.perm.media'), reason: t('channels.feishu.perm.mediaReason') },
     )
   }
 

@@ -140,14 +140,14 @@ public class AgentGraphBuilder {
         try {
             runtimeModel = modelConfigService.getDefaultModel();
         } catch (Exception e) {
-            throw new MateClawException("无法构建 Agent：请先在「设置 → 模型」中配置并启用默认模型");
+            throw new MateClawException("err.agent.no_default_model", "无法构建 Agent：请先在「设置 → 模型」中配置并启用默认模型");
         }
 
         ModelProviderEntity provider;
         try {
             provider = modelProviderService.getProviderConfig(runtimeModel.getProvider());
         } catch (Exception e) {
-            throw new MateClawException("模型 " + runtimeModel.getModelName()
+            throw new MateClawException("err.agent.model_not_configured", "模型 " + runtimeModel.getModelName()
                     + " 的 Provider（" + runtimeModel.getProvider() + "）未配置，请检查模型设置");
         }
         ModelProtocol protocol = ModelProtocol.fromChatModel(provider.getChatModel());
@@ -171,7 +171,7 @@ public class AgentGraphBuilder {
 
         // 当前仅支持 DashScope 和 OpenAI-compatible，其他协议直接拒绝
         if (!supportsStateGraph(protocol)) {
-            throw new MateClawException("当前不支持协议 " + protocol.getId()
+            throw new MateClawException("err.agent.protocol_not_supported", "当前不支持协议 " + protocol.getId()
                     + "，请切换到 DashScope 或 OpenAI-compatible 模型");
         }
 
@@ -332,7 +332,7 @@ public class AgentGraphBuilder {
                     .recursionLimit(maxIterations > 0 ? maxIterations * 3 + 10 : 300)
                     .build());
         } catch (Exception e) {
-            throw new MateClawException("Plan-Execute StateGraph 编译失败: " + e.getMessage());
+            throw new MateClawException("err.agent.plan_compile_failed", "Plan-Execute StateGraph 编译失败: " + e.getMessage());
         }
     }
 
@@ -442,7 +442,7 @@ public class AgentGraphBuilder {
                     .withLifecycleListener(new ReActLifecycleListener())
                     .build());
         } catch (Exception e) {
-            throw new MateClawException("StateGraph v2 编译失败: " + e.getMessage());
+            throw new MateClawException("err.agent.graph_compile_failed", "StateGraph v2 编译失败: " + e.getMessage());
         }
     }
 
@@ -502,7 +502,7 @@ public class AgentGraphBuilder {
                     .build();
         }
 
-        throw new MateClawException("StateGraph 当前仅支持 DashScope 原生协议、OpenAI-compatible 协议和 Anthropic Messages 协议: " + protocol.getId());
+        throw new MateClawException("err.agent.protocol_limited", "StateGraph 当前仅支持 DashScope 原生协议、OpenAI-compatible 协议和 Anthropic Messages 协议: " + protocol.getId());
     }
 
     /**
@@ -791,15 +791,15 @@ public class AgentGraphBuilder {
 
     OpenAiApi buildOpenAiApi(ModelProviderEntity provider) {
         if (provider == null || !modelProviderService.isProviderConfigured(provider.getProviderId())) {
-            throw new MateClawException("Provider 未完成配置，请在模型设置中填写有效的 API Key 和 Base URL");
+            throw new MateClawException("err.agent.provider_not_configured", "Provider 未完成配置，请在模型设置中填写有效的 API Key 和 Base URL");
         }
         String apiKey = provider.getApiKey();
         if (!modelProviderService.hasUsableApiKey(apiKey)) {
-            throw new MateClawException("Provider API Key 未配置或无效: " + provider.getProviderId());
+            throw new MateClawException("err.agent.provider_apikey_invalid", "Provider API Key 未配置或无效: " + provider.getProviderId());
         }
         String baseUrl = normalizeOpenAiBaseUrl(provider.getBaseUrl());
         if (!StringUtils.hasText(baseUrl)) {
-            throw new MateClawException("Provider Base URL 未配置: " + provider.getProviderId());
+            throw new MateClawException("err.agent.provider_baseurl_missing", "Provider Base URL 未配置: " + provider.getProviderId());
         }
         Map<String, Object> kwargs = modelProviderService.readProviderGenerateKwargs(provider);
         MultiValueMap<String, String> headers = buildOpenAiHeaders(kwargs);
@@ -892,7 +892,7 @@ public class AgentGraphBuilder {
             apiKey = readApiKeyFromDefaultChatModel();
         }
         if (!modelProviderService.hasUsableApiKey(apiKey)) {
-            throw new MateClawException("DashScope API Key 未配置，请在模型设置中填写 dashscope 的 API Key，或设置 DASHSCOPE_API_KEY 环境变量");
+            throw new MateClawException("err.agent.dashscope_key_missing", "DashScope API Key 未配置，请在模型设置中填写 dashscope 的 API Key，或设置 DASHSCOPE_API_KEY 环境变量");
         }
         builder.apiKey(apiKey.trim());
 
@@ -915,11 +915,11 @@ public class AgentGraphBuilder {
 
     private AnthropicApi buildAnthropicApi(ModelProviderEntity provider) {
         if (provider == null || !modelProviderService.isProviderConfigured(provider.getProviderId())) {
-            throw new MateClawException("Anthropic Provider 未完成配置，请在模型设置中填写有效的 API Key 和 Base URL");
+            throw new MateClawException("err.agent.anthropic_not_configured", "Anthropic Provider 未完成配置，请在模型设置中填写有效的 API Key 和 Base URL");
         }
         String apiKey = provider.getApiKey();
         if (!modelProviderService.hasUsableApiKey(apiKey)) {
-            throw new MateClawException("Anthropic API Key 未配置或无效: " + provider.getProviderId());
+            throw new MateClawException("err.agent.anthropic_key_invalid", "Anthropic API Key 未配置或无效: " + provider.getProviderId());
         }
         String baseUrl = provider.getBaseUrl();
         RestClient.Builder restClientBuilder = restClientBuilderProvider.getIfAvailable(RestClient::builder);

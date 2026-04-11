@@ -37,7 +37,7 @@ public class SqlValidationService {
      */
     public String validateAndNormalize(String sql) {
         if (sql == null || sql.isBlank()) {
-            throw new MateClawException("SQL 不能为空");
+            throw new MateClawException("err.datasource.sql_empty", "SQL 不能为空");
         }
 
         // 去除末尾分号
@@ -51,16 +51,16 @@ public class SqlValidationService {
             // 尝试解析为多条语句，检查是否有多语句注入
             Statements stmts = CCJSqlParserUtil.parseStatements(sql);
             if (stmts.getStatements().size() != 1) {
-                throw new MateClawException("仅允许执行单条 SQL 语句，检测到 " + stmts.getStatements().size() + " 条");
+                throw new MateClawException("err.datasource.only_single_sql", "仅允许执行单条 SQL 语句，检测到 " + stmts.getStatements().size() + " 条");
             }
             statement = stmts.getStatements().get(0);
         } catch (JSQLParserException e) {
-            throw new MateClawException("SQL 解析失败: " + e.getMessage());
+            throw new MateClawException("err.datasource.sql_parse_failed", "SQL 解析失败: " + e.getMessage());
         }
 
         // 仅允许 SELECT
         if (!(statement instanceof Select)) {
-            throw new MateClawException("仅允许 SELECT 查询，检测到: " + statement.getClass().getSimpleName());
+            throw new MateClawException("err.datasource.only_select", "仅允许 SELECT 查询，检测到: " + statement.getClass().getSimpleName());
         }
 
         Select select = (Select) statement;

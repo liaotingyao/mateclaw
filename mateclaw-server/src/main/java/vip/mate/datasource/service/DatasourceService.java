@@ -51,7 +51,7 @@ public class DatasourceService {
     public DatasourceEntity getById(Long id) {
         DatasourceEntity entity = datasourceMapper.selectById(id);
         if (entity == null) {
-            throw new MateClawException("数据源不存在: " + id);
+            throw new MateClawException("err.datasource.not_found", "数据源不存在: " + id);
         }
         return entity;
     }

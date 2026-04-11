@@ -47,7 +47,7 @@ public class ModelConfigService {
     public ModelConfigEntity getModel(Long id) {
         ModelConfigEntity entity = modelConfigMapper.selectById(id);
         if (entity == null) {
-            throw new MateClawException("模型配置不存在: " + id);
+            throw new MateClawException("err.llm.model_config_not_found", "模型配置不存在: " + id);
         }
         return entity;
     }
@@ -64,7 +64,7 @@ public class ModelConfigService {
                 .orderByAsc(ModelConfigEntity::getName)
                 .last("LIMIT 1"));
         if (entity == null) {
-            throw new MateClawException("没有可用的模型配置");
+            throw new MateClawException("err.llm.no_available_model", "没有可用的模型配置");
         }
         return entity;
     }
@@ -103,7 +103,7 @@ public class ModelConfigService {
             clearDefaultFlag();
         }
         if (existing.getIsDefault() && Boolean.FALSE.equals(entity.getEnabled())) {
-            throw new MateClawException("默认模型不能被禁用，请先切换默认模型");
+            throw new MateClawException("err.llm.cannot_disable_default", "默认模型不能被禁用，请先切换默认模型");
         }
         modelConfigMapper.updateById(entity);
         ensureDefaultExists();
@@ -114,7 +114,7 @@ public class ModelConfigService {
     public void deleteModel(Long id) {
         ModelConfigEntity entity = getModel(id);
         if (Boolean.TRUE.equals(entity.getIsDefault())) {
-            throw new MateClawException("默认模型不能删除，请先切换默认模型");
+            throw new MateClawException("err.llm.cannot_delete_default", "默认模型不能删除，请先切换默认模型");
         }
         modelConfigMapper.deleteById(id);
         ensureDefaultExists();
@@ -123,14 +123,14 @@ public class ModelConfigService {
 
     public ModelConfigEntity addModelToProvider(String providerId, String modelId, String displayName, boolean builtin) {
         if (!StringUtils.hasText(providerId) || !StringUtils.hasText(modelId)) {
-            throw new MateClawException("Provider 和模型标识不能为空");
+            throw new MateClawException("err.llm.provider_model_required", "Provider 和模型标识不能为空");
         }
         ModelConfigEntity existing = modelConfigMapper.selectOne(new LambdaQueryWrapper<ModelConfigEntity>()
                 .eq(ModelConfigEntity::getProvider, providerId)
                 .eq(ModelConfigEntity::getModelName, modelId)
                 .last("LIMIT 1"));
         if (existing != null) {
-            throw new MateClawException("模型已存在: " + modelId);
+            throw new MateClawException("err.llm.model_exists", "模型已存在: " + modelId);
         }
         ModelConfigEntity entity = new ModelConfigEntity();
         entity.setName(StringUtils.hasText(displayName) ? displayName : modelId);
@@ -155,10 +155,10 @@ public class ModelConfigService {
                 .eq(ModelConfigEntity::getModelName, modelId)
                 .last("LIMIT 1"));
         if (entity == null) {
-            throw new MateClawException("模型不存在: " + modelId);
+            throw new MateClawException("err.llm.model_not_found", "模型不存在: " + modelId);
         }
         if (Boolean.TRUE.equals(entity.getBuiltin())) {
-            throw new MateClawException("内置模型不支持删除");
+            throw new MateClawException("err.llm.builtin_readonly", "内置模型不支持删除");
         }
         deleteModel(entity.getId());
     }
@@ -175,7 +175,7 @@ public class ModelConfigService {
     public ModelConfigEntity setDefaultModel(Long id) {
         ModelConfigEntity entity = getModel(id);
         if (!Boolean.TRUE.equals(entity.getEnabled())) {
-            throw new MateClawException("只有启用状态的模型才能设为默认");
+            throw new MateClawException("err.llm.only_enabled_default", "只有启用状态的模型才能设为默认");
         }
         clearDefaultFlag();
         entity.setIsDefault(true);
@@ -190,7 +190,7 @@ public class ModelConfigService {
                 .eq(ModelConfigEntity::getModelName, modelName)
                 .last("LIMIT 1"));
         if (entity == null) {
-            throw new MateClawException("模型不存在: " + providerId + "/" + modelName);
+            throw new MateClawException("err.llm.model_not_found", "模型不存在: " + providerId + "/" + modelName);
         }
         if (!Boolean.TRUE.equals(entity.getEnabled())) {
             // Auto-enable when setting as default (e.g. local Ollama models)
@@ -218,13 +218,13 @@ public class ModelConfigService {
 
     private void validateModel(ModelConfigEntity entity, Long currentId) {
         if (!StringUtils.hasText(entity.getName())) {
-            throw new MateClawException("模型名称不能为空");
+            throw new MateClawException("err.llm.name_required", "模型名称不能为空");
         }
         if (!StringUtils.hasText(entity.getProvider())) {
             entity.setProvider("dashscope");
         }
         if (!StringUtils.hasText(entity.getModelName())) {
-            throw new MateClawException("模型标识不能为空");
+            throw new MateClawException("err.llm.id_required", "模型标识不能为空");
         }
         ModelConfigEntity duplicate = modelConfigMapper.selectOne(new LambdaQueryWrapper<ModelConfigEntity>()
                 .eq(ModelConfigEntity::getProvider, entity.getProvider())
@@ -232,7 +232,7 @@ public class ModelConfigService {
                 .ne(currentId != null, ModelConfigEntity::getId, currentId)
                 .last("LIMIT 1"));
         if (duplicate != null) {
-            throw new MateClawException("模型标识已存在: " + entity.getProvider() + "/" + entity.getModelName());
+            throw new MateClawException("err.llm.id_exists", "模型标识已存在: " + entity.getProvider() + "/" + entity.getModelName());
         }
     }
 

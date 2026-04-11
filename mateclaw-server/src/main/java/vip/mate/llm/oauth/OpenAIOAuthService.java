@@ -191,7 +191,7 @@ public class OpenAIOAuthService {
     private void exchangeToken(String code, String state) {
         String codeVerifier = pendingStates.remove(state);
         if (codeVerifier == null) {
-            throw new MateClawException("无效的 OAuth state，可能已过期或重复使用");
+            throw new MateClawException("err.llm.oauth_state_invalid", "无效的 OAuth state，可能已过期或重复使用");
         }
 
         String body = "grant_type=authorization_code"
@@ -210,7 +210,7 @@ public class OpenAIOAuthService {
     public void refreshToken() {
         ModelProviderEntity provider = getProvider();
         if (!StringUtils.hasText(provider.getOauthRefreshToken())) {
-            throw new MateClawException("无 refresh_token，请重新登录");
+            throw new MateClawException("err.llm.oauth_no_refresh", "无 refresh_token，请重新登录");
         }
 
         String body = "grant_type=refresh_token"
@@ -227,7 +227,7 @@ public class OpenAIOAuthService {
     public String ensureValidAccessToken() {
         ModelProviderEntity provider = getProvider();
         if (!StringUtils.hasText(provider.getOauthAccessToken())) {
-            throw new MateClawException("未连接 OpenAI OAuth，请先登录");
+            throw new MateClawException("err.llm.oauth_not_connected", "未连接 OpenAI OAuth，请先登录");
         }
 
         // 提前 5 分钟刷新
@@ -299,7 +299,7 @@ public class OpenAIOAuthService {
             return objectMapper.readTree(response);
         } catch (Exception e) {
             log.error("OpenAI OAuth token 请求失败", e);
-            throw new MateClawException("OAuth token 交换失败: " + e.getMessage());
+            throw new MateClawException("err.llm.oauth_exchange_failed", "OAuth token 交换失败: " + e.getMessage());
         }
     }
 
@@ -309,7 +309,7 @@ public class OpenAIOAuthService {
         int expiresIn = tokenResponse.path("expires_in").asInt(3600);
 
         if (!StringUtils.hasText(accessToken)) {
-            throw new MateClawException("OAuth 响应中缺少 access_token");
+            throw new MateClawException("err.llm.oauth_no_token", "OAuth 响应中缺少 access_token");
         }
 
         String accountId = extractAccountIdFromJwt(accessToken);
@@ -354,7 +354,7 @@ public class OpenAIOAuthService {
     private ModelProviderEntity getProvider() {
         ModelProviderEntity provider = modelProviderMapper.selectById(PROVIDER_ID);
         if (provider == null) {
-            throw new MateClawException("OpenAI ChatGPT provider 未配置，请检查数据库初始化");
+            throw new MateClawException("err.llm.chatgpt_not_configured", "OpenAI ChatGPT provider 未配置，请检查数据库初始化");
         }
         return provider;
     }
@@ -384,7 +384,7 @@ public class OpenAIOAuthService {
             byte[] digest = md.digest(codeVerifier.getBytes(StandardCharsets.US_ASCII));
             return base64UrlEncode(digest);
         } catch (Exception e) {
-            throw new MateClawException("PKCE code_challenge 生成失败: " + e.getMessage());
+            throw new MateClawException("err.llm.pkce_failed", "PKCE code_challenge 生成失败: " + e.getMessage());
         }
     }
 
