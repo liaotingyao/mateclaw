@@ -1,8 +1,11 @@
 <script setup lang="ts">
 import { ref, computed, watch } from 'vue'
+import { useI18n } from 'vue-i18n'
 import { Opportunity, ArrowDown } from '@element-plus/icons-vue'
 import { useMarkdownRenderer } from '@/composables/useMarkdownRenderer'
 import type { MessageSegment } from '@/types'
+
+const { t } = useI18n()
 
 const props = defineProps<{
   segment: MessageSegment
@@ -22,7 +25,7 @@ watch(() => props.segment.status, (val) => {
 const lengthHint = computed(() => {
   const len = props.segment.thinkingText?.length || 0
   if (len < 100) return ''
-  return len < 1000 ? `${len} 字` : `${(len / 1000).toFixed(1)}k 字`
+  return len < 1000 ? `${len} chars` : `${(len / 1000).toFixed(1)}k chars`
 })
 </script>
 
@@ -32,7 +35,7 @@ const lengthHint = computed(() => {
       <span class="seg-thinking__icon">
         <el-icon :class="{ 'is-loading': isRunning }" :size="14"><Opportunity /></el-icon>
       </span>
-      <span class="seg-thinking__label">{{ isRunning ? '思考中...' : '深度思考' }}</span>
+      <span class="seg-thinking__label">{{ isRunning ? t('chat.thinkingInProgress') : t('chat.thinking') }}</span>
       <span v-if="lengthHint" class="seg-thinking__hint">{{ lengthHint }}</span>
       <el-icon class="seg-thinking__arrow" :class="{ 'is-open': expanded }" :size="12"><ArrowDown /></el-icon>
     </div>

@@ -132,7 +132,7 @@
         <!-- 停止指示器 -->
         <div v-if="status === 'stopped' || status === 'interrupted'" class="stopped-indicator">
           <el-icon><CloseBold /></el-icon>
-          <span>{{ status === 'interrupted' ? ($t('chat.interrupted') || '已中断') : $t('chat.stopped') }}</span>
+          <span>{{ status === 'interrupted' ? $t('chat.interrupted') : $t('chat.stopped') }}</span>
         </div>
 
         <!-- 错误卡片 -->
